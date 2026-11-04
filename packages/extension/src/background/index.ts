@@ -551,6 +551,30 @@ function dispatchPanelMessage(msg: any, sender: chrome.runtime.MessageSender, se
     forwardToPinnedTab({ type: 'APPLY_PARENT_STYLE', property: msg.property, value: msg.value }, sendResponse);
     return true;
   }
+  if (msg.type === 'SP_COPY_APPEARANCE') {
+    forwardToPinnedTab({ type: 'COPY_APPEARANCE' }, sendResponse);
+    return true;
+  }
+  if (msg.type === 'SP_GET_SITE_CLASSES') {
+    forwardToPinnedTab({ type: 'GET_SITE_CLASSES' }, sendResponse);
+    return true;
+  }
+  if (msg.type === 'SP_PREVIEW_MOVE_PLACEMENT') {
+    forwardToPinnedTab({ type:'PREVIEW_MOVE_PLACEMENT', sourceId:msg.sourceId, targetId:msg.targetId, position:msg.position },sendResponse);
+    return true;
+  }
+  if (msg.type === 'SP_PREVIEW_BUILDER_PLACEMENT') {
+    forwardToPinnedTab({ type:'PREVIEW_BUILDER_PLACEMENT', targetId:msg.targetId, position:msg.position },sendResponse);
+    return true;
+  }
+  if (msg.type === 'SP_CLEAR_BUILDER_PREVIEW') {
+    forwardToPinnedTab({ type:'CLEAR_BUILDER_PREVIEW' },sendResponse);
+    return true;
+  }
+  if (msg.type === 'SP_ADD_BUILDER_ELEMENT') {
+    forwardToPinnedTab({ type: 'ADD_BUILDER_ELEMENT', kind: msg.kind, targetId: msg.targetId, className: msg.className, position: msg.position }, sendResponse);
+    return true;
+  }
   if (msg.type === 'SP_DOM_ACTION') {
     forwardToPinnedTab({ type: 'DOM_ACTION', action: msg.action, elementId: msg.elementId, elementIds: msg.elementIds }, sendResponse);
     return true;
