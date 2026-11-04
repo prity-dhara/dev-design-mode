@@ -1,5 +1,5 @@
 // Discover reusable classes from the current page, without modifying its CSS.
-// Only visible DOM nodes are sampled; cross-origin stylesheets are not inspected.
+// DOM class attributes are sampled; cross-origin stylesheets are not inspected.
 import type { BuilderKind } from './visual-builder';
 
 export interface SiteClass {
@@ -16,7 +16,7 @@ export function classifySiteElement(el: Element): BuilderKind | 'other' {
   if (tag === 'section') return 'section';
   if (/^h[1-6]$/.test(tag)) return 'heading';
   if (tag === 'p') return 'paragraph';
-  if (tag === 'button' || (tag === 'a' && el.getAttribute('role') === 'button')) return 'button';
+  if (tag === 'button' || (tag === 'a' && (el.getAttribute('role') === 'button' || /(^|[-_])(btn|button|cta)([-_]|$)/i.test(Array.from(el.classList).join(' '))))) return 'button';
   if (tag === 'img') return 'image';
   if (tag === 'article') return 'card';
   if (tag === 'main') return 'container';
