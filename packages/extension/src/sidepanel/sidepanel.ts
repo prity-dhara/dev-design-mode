@@ -7138,7 +7138,7 @@ function renderBuilderPanel(): string {
     '<span style="font-size:10px;color:var(--dm-text);">Selected: <b>' + escapeAttr(info?.tagName?.toLowerCase() || 'page') + '</b>' +
       (info?.className ? ' · ' + escapeAttr(info.className.slice(0,42)) : '') + '</span>' +
     '<button type="button" data-dm-action="builder-open-design" style="background:transparent;border:0;color:var(--dm-accent);font-size:10px;cursor:pointer;white-space:nowrap;">Style selected</button></div>' +
-    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Reuse a class from this page, or leave blank to use the element\'s global style. Click an element to insert it.</div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Reuse a class from this page, or leave blank to use the element\'s global style. Choose an element to preview its location, then click Insert here. The Add panel stays open for the next element.</div>' +
     '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">Search existing classes or create a new one</label>' +
     '<input data-dm-builder-class list="dm-builder-site-classes" aria-label="Element CSS class" value="' + escapeAttr(builderClassInput) + '" placeholder="Search classes..." style="box-sizing:border-box;width:100%;margin-bottom:6px;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;"/>' +
     '<datalist id="dm-builder-site-classes">' + suggestions + '</datalist>' +
