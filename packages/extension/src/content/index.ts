@@ -28,6 +28,7 @@ import { initCustomCursor, applyBaseCursor, clearBaseCursor } from './custom-cur
 import { getStyleChanges, getTextChanges, getDomChanges, clearAllChanges, applyStyleChange, applyWithCompanions, computeCompanions, applyTextChange, applyHtmlChange, applyAttributeChange, removeStyleChange, removeDomChange, removeTextChange, recordDomChange, connectToServer, disconnectFromServer, isConnected, isAgentConnected, getChangeReport, reorderChange, getAllChanges, replaySession, setOverridesEnabled, applyChangesPayload, setUnhandledMessageHandler, sendRelayResponse, setChangesStatus, syncCommentChange, syncCommentDeleted, stageAgentHandoff, getFeedbackSessionView, isLiveFeedbackSupported, stopFeedbackSessionFromUi } from './change-tracker';
 import { isSafeRichTextHref } from '../rich-text-preservation';
 import { copyElement, pasteElement, duplicateElement, moveElement } from './html-editor';
+import { addBuilderElement, BUILDER_KINDS, type BuilderKind } from './visual-builder';
 import { isTypingTarget } from './shortcut-binding';
 import { deleteElements, type DeleteCommand } from './delete-command';
 import { beginMove, type MoveCommand } from './move-command';
@@ -1940,6 +1941,23 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       }
       sendResponse({ error: 'No parent' });
       break;
+    }
+
+    case 'ADD_BUILDER_ELEMENT': {
+      const kind = msg.kind as BuilderKind;
+      if (!BUILDER_KINDS.includes(kind)) { sendResponse({ ok: false, error: 'Unknown element type' }); break; }
+      const id = addBuilderElement(kind, msg.targetId || getSelectedElementId() || undefined, msg.className);
+      if (!id) { sendResponse({ ok: false, error: 'Could not add element on this page or invalid class name' }); break; }
+      const el = getElementById(id)!;
+      setSelectedElementId(id);
+      showSelect(el);
+      const parentId = el.parentElement ? getOrAssignId(el.parentElement) : '';
+      const nextSiblingId = el.nextElementSibling ? getOrAssignId(el.nextElementSibling) : null;
+      undoStack.push({ kind: 'dom', action: 'duplicate', elementId: id, html: el.outerHTML, parentId, nextSiblingId });
+      redoStack.length = 0;
+      getChangesPayload().then(p => sendResponse({ ok: true, info: { ...buildElementInfo(el), element: undefined }, ...p, undoCount: undoStack.length, redoCount: redoStack.length }))
+        .catch(error => sendResponse({ ok: false, error: String(error) }));
+      return true;
     }
 
     case 'DOM_ACTION': {
