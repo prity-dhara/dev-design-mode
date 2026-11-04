@@ -7076,6 +7076,7 @@ async function buildInsideSelectedParent(operation = beginInspectorOperation()) 
 }
 async function makeSelectedWrapperHorizontal(operation = beginInspectorOperation()) {
   operation.assertCurrent();
+  if (multiSelectIds.length > 0) { showCaptureToast('error','Turn off multi-select before changing wrapper layout.'); return; }
   if (!info?.id || !['div','section','article','main'].includes(info.tagName.toLowerCase())) {
     showCaptureToast('error','Select a container or div to change its layout.'); return;
   }
