@@ -2389,6 +2389,10 @@ browser.runtime.onMessage.addListener((msg, sender) => {
         builderPickingTarget = false;
         builderInsertPosition = 'after';
         pendingBuilderTarget = info?.id;
+        // Pick is a one-shot action; stop inspection so subsequent clicks
+        // don't unexpectedly reset the chosen insertion reference.
+        void runInspectorAction(send({ type: 'SP_SET_INSPECT', on: false }));
+        inspecting = false;
         if (pendingBuilderKind) {
           const kind = pendingBuilderKind;
           void runInspectorAction(previewBuilderKind(kind));
@@ -7208,6 +7212,8 @@ function renderBuilderPanel(): string {
       (info?.className ? ' · ' + escapeAttr(info.className.slice(0,42)) : '') + '</span>' +
     '<button type="button" data-dm-action="builder-open-design" style="background:transparent;border:0;color:var(--dm-accent);font-size:10px;cursor:pointer;white-space:nowrap;">Style selected</button></div>' +
     '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Select an element on the page and insert Before or After it. Use Inside only when you want to append to a container.</div>' +
+    (info?.tagName?.toLowerCase() === 'main' && builderInsertPosition === 'inside' ?
+      '<div style="font-size:10px;color:#d97706;margin-bottom:8px;">Inside main adds at the end of the entire page content. Choose an element and use Before or After for an exact location.</div>' : '') +
     '<div style="display:flex;gap:5px;align-items:center;margin-bottom:8px;">' +
     '<button type="button" data-dm-action="builder-pick-target" style="flex:1;padding:9px;border-radius:6px;border:1px solid var(--dm-accent-border);background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;font-weight:600;">' +
       (builderPickingTarget ? 'Click an element on the page...' : 'Pick exact position on page') + '</button></div>' +
