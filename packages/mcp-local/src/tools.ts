@@ -91,8 +91,12 @@ function renderExport(format: ExportFormat): string {
   }).join('\n\n');
 }
 
-async function getChanges(): Promise<ToolResult> {
-  return { content: [{ type: 'text', text: JSON.stringify(state.getFullChangeReport(), null, 2) }] };
+async function getChanges(args: Record<string, unknown> = {}): Promise<ToolResult> {
+  // Keep the existing report schema intact, including IDs for status updates.
+  // Compact serialization avoids spending agent context on JSON whitespace;
+  // callers can request the previous human-readable formatting if needed.
+  const pretty = args.format === 'pretty';
+  return { content: [{ type: 'text', text: JSON.stringify(state.getFullChangeReport(), null, pretty ? 2 : undefined) }] };
 }
 
 async function applyChanges(args: Record<string, unknown>): Promise<ToolResult> {
@@ -253,7 +257,7 @@ export async function executeLocalTool(
   extra?: ToolExtra,
 ): Promise<ToolResult> {
   switch (name) {
-    case 'get_changes': return getChanges();
+    case 'get_changes': return getChanges(args);
     case 'apply_changes': return applyChanges(args);
     case 'set_change_status': return setChangeStatus(args);
     case 'clear_changes': return clearChanges();

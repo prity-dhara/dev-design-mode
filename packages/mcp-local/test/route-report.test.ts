@@ -148,3 +148,18 @@ test('complete snapshots remove dropped entries and clear removes route groups',
   state.clear();
   assert.equal('routeGroups' in state.getFullChangeReport(), false);
 });
+
+
+test('get_changes uses compact JSON by default without losing report fields', async () => {
+  state.clear();
+  state.addStyleChange(style('compact-test', A, 'purple'));
+  const compact = await executeLocalTool('get_changes');
+  const pretty = await executeLocalTool('get_changes', { format: 'pretty' });
+  const compactText = compact.content[0].type === 'text' ? compact.content[0].text : '';
+  const prettyText = pretty.content[0].type === 'text' ? pretty.content[0].text : '';
+  assert.deepEqual(JSON.parse(compactText), JSON.parse(prettyText));
+  assert.ok(compactText.length < prettyText.length);
+  assert.equal(compactText.includes('\n'), false);
+  assert.equal(JSON.parse(compactText).items[0].id, 'compact-test');
+  state.clear();
+});
