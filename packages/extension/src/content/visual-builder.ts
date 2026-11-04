@@ -48,6 +48,28 @@ export function previewBuilderPlacement(targetId: string | undefined, position: 
 }
 
 
+// Transient editor-only indication for otherwise invisible empty sections.
+// The actual page element keeps its original CSS (no forced min-height).
+export function highlightInsertedBuilderElement(elementId: string, kind: BuilderKind): void {
+  const target = getElementById(elementId);
+  if (!target) return;
+  clearBuilderPreview();
+  const rect = target.getBoundingClientRect();
+  const overlay = document.createElement('div');
+  overlay.setAttribute('data-dm-builder-overlay','');
+  overlay.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;box-sizing:border-box;border:2px dashed #2563eb;background:rgba(37,99,235,.06);border-radius:4px;';
+  overlay.style.left = Math.max(0,rect.left) + 'px';
+  overlay.style.top = Math.max(0,rect.top) + 'px';
+  overlay.style.width = Math.max(40,Math.min(innerWidth,rect.right)-Math.max(0,rect.left)) + 'px';
+  overlay.style.height = Math.max(48,Math.min(rect.height || 48,innerHeight-Math.max(0,rect.top))) + 'px';
+  const label = document.createElement('span');
+  label.textContent = 'New ' + kind + (rect.height < 12 ? ' · empty' : '');
+  label.style.cssText = 'position:absolute;top:0;left:0;background:#2563eb;color:#fff;padding:3px 7px;border-radius:0 0 4px 0;font:600 12px system-ui,sans-serif;';
+  overlay.appendChild(label);
+  document.documentElement.appendChild(overlay);
+  preview = overlay;
+  setTimeout(() => { if (preview === overlay) clearBuilderPreview(); }, 4500);
+}
 export function addBuilderElement(kind: BuilderKind, targetId?: string, className?: string, position: InsertPosition = 'after'): string | null {
   if (!canEditRoute() || !BUILDER_KINDS.includes(kind)) return null;
   // The class is always a single safe CSS class, never HTML or a selector.
