@@ -1944,6 +1944,29 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       break;
     }
 
+    case 'COPY_APPEARANCE': {
+      const selected = getSelectedElementId();
+      const source = selected ? getElementById(selected) : null;
+      if (!source || source === document.body || source === document.documentElement) {
+        sendResponse({ ok: false, error: 'Select a page element to copy its appearance.' });
+        break;
+      }
+      const computed = window.getComputedStyle(source);
+      // Safe, finite allowlist of visual-only styles. No geometry, interactivity,
+      // positioning, transitions or animation settings are transferred.
+      const properties = [
+        'font-family', 'font-size', 'font-weight', 'font-style',
+        'line-height', 'letter-spacing', 'text-transform', 'text-align',
+        'color', 'background-color', 'border-radius',
+        'box-shadow', 'text-shadow', 'opacity', 'text-decoration-line',
+      ];
+      const changes = properties.map(property => ({ property, value: computed.getPropertyValue(property).trim() }))
+        .filter(c => c.value && !(c.property === 'background-color' &&
+          /^(transparent|rgba?\\(0,\\s*0,\\s*0,\\s*0\\)|rgb\\(0 0 0 \\/ 0\\))$/.test(c.value)));
+      sendResponse({ ok: true, changes, tagName: source.tagName.toLowerCase() });
+      break;
+    }
+
     case 'GET_SITE_CLASSES': {
       sendResponse({ ok: true, classes: discoverSiteClasses() });
       break;
