@@ -2381,6 +2381,24 @@ browser.runtime.onMessage.addListener((msg, sender) => {
     }
     const selectedElementChanged = info?.id !== msg.payload?.id;
     info = msg.payload; hoverInfo = null; commentMode = false;
+    if (selectedElementChanged && builderOpen) {
+      // A real selection supersedes any previously remembered parent wrapper.
+      builderTargetMode = 'selected';
+      builderWrapperId = undefined;
+      if (builderPickingTarget) {
+        builderPickingTarget = false;
+        builderInsertPosition = 'after';
+        pendingBuilderTarget = info?.id;
+        if (pendingBuilderKind) {
+          const kind = pendingBuilderKind;
+          void runInspectorAction(previewBuilderKind(kind));
+        }
+      } else {
+        pendingBuilderKind = null;
+        pendingBuilderTarget = undefined;
+        void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' }));
+      }
+    }
     hydrateLayoutGuidesFromPayload(info);
     contrastSettingsOpen = false;
     tokenBadgeMenuProp = null;
@@ -7063,6 +7081,17 @@ let pendingBuilderKind: string | null = null;
 let pendingBuilderTarget: string | undefined;
 let builderWrapperId: string | undefined;
 let builderTargetMode: 'wrapper' | 'selected' = 'selected';
+let builderPickingTarget = false;
+async function beginBuilderTargetPick(operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  builderPickingTarget = true;
+  // The next click on the page chooses an exact reference element instead of
+  // silently appending content to a large wrapper like <main>.
+  const result = await operation.wait(send({ type: 'SP_SET_INSPECT', on: true },operation));
+  if (typeof result.inspecting === 'boolean') inspecting = result.inspecting;
+  showCaptureToast('success','Click the element on the page where you want to insert.');
+  render();
+}
 function builderTargetId(): string | undefined {
   return builderTargetMode === 'wrapper' && builderWrapperId ? builderWrapperId : info?.id;
 }
@@ -7178,7 +7207,10 @@ function renderBuilderPanel(): string {
     '<span style="font-size:10px;color:var(--dm-text);">Selected: <b>' + escapeAttr(info?.tagName?.toLowerCase() || 'page') + '</b>' +
       (info?.className ? ' · ' + escapeAttr(info.className.slice(0,42)) : '') + '</span>' +
     '<button type="button" data-dm-action="builder-open-design" style="background:transparent;border:0;color:var(--dm-accent);font-size:10px;cursor:pointer;white-space:nowrap;">Style selected</button></div>' +
-    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Add inside a section or div, then add the next heading, paragraph or button after the last element. The selected element is always your insertion reference.</div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Select an element on the page and insert Before or After it. Use Inside only when you want to append to a container.</div>' +
+    '<div style="display:flex;gap:5px;align-items:center;margin-bottom:8px;">' +
+    '<button type="button" data-dm-action="builder-pick-target" style="flex:1;padding:9px;border-radius:6px;border:1px solid var(--dm-accent-border);background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;font-weight:600;">' +
+      (builderPickingTarget ? 'Click an element on the page...' : 'Pick exact position on page') + '</button></div>' +
     '<div style="display:flex;gap:5px;align-items:center;margin-bottom:8px;">' +
     '<span style="flex:1;font-size:10px;color:var(--dm-text-secondary);">Insert target: <b>' +
       (builderTargetMode === 'wrapper' && builderWrapperId ? 'Parent wrapper (explicit)' : 'Selected element') +
@@ -10589,10 +10621,11 @@ function setupDelegation() {
         }
         case 'toggle-builder':
           builderOpen = !builderOpen; tab = 'layers'; render();
-          if (builderOpen) { builderTargetMode = 'selected'; builderWrapperId = undefined; void runInspectorAction(refreshBuilderClasses(operation)); }
+          if (builderOpen) { builderTargetMode = 'selected'; builderWrapperId = undefined; builderInsertPosition = 'after'; void runInspectorAction(refreshBuilderClasses(operation)); }
           else { pendingBuilderKind = null; void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation)); }
           break;
         case 'confirm-builder-insert': void runInspectorAction(confirmBuilderInsert(operation)); break;
+        case 'builder-pick-target': void runInspectorAction(beginBuilderTargetPick(operation)); break;
         case 'builder-open-design': tab = 'design'; render(); break;
         case 'builder-select-parent': void runInspectorAction(buildInsideSelectedParent(operation)); break;
         case 'builder-target-selected':
