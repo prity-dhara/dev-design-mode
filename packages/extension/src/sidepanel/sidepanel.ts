@@ -7126,20 +7126,14 @@ async function confirmBuilderInsert(operation = beginInspectorOperation()) {
     return;
   }
   pendingBuilderKind = null;
-  const previousTarget = pendingBuilderTarget;
   pendingBuilderTarget = undefined;
   if (res.info) info = res.info;
-  // Preserve the parent wrapper when adding headings, text, and buttons.
-  // Future inserts become siblings inside it, never children of an H2/P/Button.
-  if (['section','container','div','grid','card'].includes(kind)) {
-    builderWrapperId = info?.id;
-  } else if (res.parentId) {
-    builderWrapperId = res.parentId;
-  } else {
-    builderWrapperId = previousTarget;
-  }
-  builderTargetMode = builderWrapperId ? 'wrapper' : 'selected';
-  builderInsertPosition = builderWrapperId ? 'inside' : 'after';
+  // Follow the element just inserted, rather than silently targeting a
+  // previously selected wrapper elsewhere on the page.
+  builderWrapperId = undefined;
+  builderTargetMode = 'selected';
+  // Structural wrappers accept children; content elements become siblings.
+  builderInsertPosition = ['section','container','div','grid','card'].includes(kind) ? 'inside' : 'after';
   builderClassInput = '';
   tab = 'layers';
   await refreshDomTree(operation);
@@ -7184,10 +7178,10 @@ function renderBuilderPanel(): string {
     '<span style="font-size:10px;color:var(--dm-text);">Selected: <b>' + escapeAttr(info?.tagName?.toLowerCase() || 'page') + '</b>' +
       (info?.className ? ' · ' + escapeAttr(info.className.slice(0,42)) : '') + '</span>' +
     '<button type="button" data-dm-action="builder-open-design" style="background:transparent;border:0;color:var(--dm-accent);font-size:10px;cursor:pointer;white-space:nowrap;">Style selected</button></div>' +
-    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Add a Section → Div → Heading → Paragraph → Button. New elements stay inside the same wrapper automatically.</div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Add inside a section or div, then add the next heading, paragraph or button after the last element. The selected element is always your insertion reference.</div>' +
     '<div style="display:flex;gap:5px;align-items:center;margin-bottom:8px;">' +
     '<span style="flex:1;font-size:10px;color:var(--dm-text-secondary);">Insert target: <b>' +
-      (builderTargetMode === 'wrapper' && builderWrapperId ? 'Current wrapper' : 'Selected element') +
+      (builderTargetMode === 'wrapper' && builderWrapperId ? 'Parent wrapper (explicit)' : 'Selected element') +
     '</b></span>' +
     '<button type="button" data-dm-action="builder-target-selected" style="padding:5px;border:1px solid var(--dm-separator);background:var(--dm-btn-bg);color:var(--dm-text);border-radius:5px;font-size:10px;cursor:pointer;">Use selected</button></div>' +
     '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">Search existing classes or create a new one</label>' +
@@ -7198,7 +7192,7 @@ function renderBuilderPanel(): string {
     '<div style="display:flex;gap:5px;margin-bottom:8px;">' +
       '<button type="button" data-dm-action="builder-select-parent" style="flex:1;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:10px;">↑ Use parent wrapper</button>' +
       '<button type="button" data-dm-action="builder-horizontal" style="flex:1;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:10px;">↔ Horizontal layout</button></div>' +
-    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">For a paragraph beside a heading: select the heading, choose Use parent wrapper, then Horizontal layout. Add the paragraph Inside.</div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">For a paragraph after H2, select the heading and choose After. Use Inside only for a section or div. Flex/Grid controls the visual row or column layout.</div>' +
     '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">Placement relative to selected element</label>' +
     '<select data-dm-builder-position style="width:100%;padding:6px;margin-bottom:8px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;">' +
     ['before','inside','after'].map(position =>
