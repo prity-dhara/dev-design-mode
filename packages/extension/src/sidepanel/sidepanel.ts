@@ -7113,11 +7113,20 @@ async function startMoveTo(operation = beginInspectorOperation()) {
   showCaptureToast('success','Now click the destination element on the page.');
   render();
 }
+async function restoreSelectionAfterMove(operation = beginInspectorOperation()) {
+  // The destination picker temporarily disables inspection after one click.
+  // Restore it when the move completes or is cancelled so the canvas stays
+  // clickable. Clear the placement line independently of the selection box.
+  await send({ type: 'SP_CLEAR_BUILDER_PREVIEW' }, operation);
+  const result = await send({ type: 'SP_SET_INSPECT', on: true }, operation);
+  if (typeof result.inspecting === 'boolean') inspecting = result.inspecting;
+}
+
 async function cancelMoveTo(operation = beginInspectorOperation()) {
   moveSourceId = null;
   moveDestinationId = null;
   movePickDestination = false;
-  await send({type:'SP_CLEAR_BUILDER_PREVIEW'},operation);
+  await restoreSelectionAfterMove(operation);
   render();
 }
 async function confirmMoveTo(operation = beginInspectorOperation()) {
@@ -7135,8 +7144,9 @@ async function confirmMoveTo(operation = beginInspectorOperation()) {
   undoCount = res.undoCount ?? undoCount;
   redoCount = res.redoCount ?? redoCount;
   moveSourceId = null; moveDestinationId = null; movePickDestination = false;
+  await restoreSelectionAfterMove(operation);
   await refreshDomTree(operation); await refreshChanges(operation);
-  showCaptureToast('success','Element moved. Undo to restore its original position.');
+  showCaptureToast('success','Element moved. Select another element or Undo to restore its position.');
   render();
 }
 function renderMoveToPanel(): string {
