@@ -1983,11 +1983,11 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
             if (property !== 'background-color') return true;
             // Do not transfer transparent backgrounds: they may hide an
             // intended surface behind a heading or section.
-            const compact = value.toLowerCase().replace(/\\s+/g, '');
+            const compact = value.toLowerCase().replace(/\s+/g, '');
             return compact !== 'transparent' &&
               compact !== 'rgba(0,0,0,0)' &&
-              compact !== 'rgb(0 0 0 / 0)'.replace(/\\s+/g, '') &&
-              compact !== 'rgb(0 0 0 / 0%)'.replace(/\\s+/g, '');
+              compact !== 'rgb(0 0 0 / 0)'.replace(/\s+/g, '') &&
+              compact !== 'rgb(0 0 0 / 0%)'.replace(/\s+/g, '');
           }),
         ]),
       );
