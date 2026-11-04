@@ -7089,11 +7089,16 @@ async function confirmBuilderInsert(operation = beginInspectorOperation()) {
     return;
   }
   pendingBuilderKind = null;
+  pendingBuilderTarget = undefined;
   if (res.info) info = res.info;
+  // Keep Add Elements open. Newly inserted wrappers become the current target
+  // so the next heading/container can be nested without revisiting Layers.
+  builderInsertPosition = ['section', 'container', 'div', 'grid', 'card'].includes(kind) ? 'inside' : 'after';
+  builderClassInput = '';
+  tab = 'layers';
   await refreshDomTree(operation);
   await refreshChanges(operation);
-  builderOpen = false;
-  tab = 'design';
+  showCaptureToast('success', kind.charAt(0).toUpperCase() + kind.slice(1) + ' added. Add another element or open Design.');
   render();
 }
 
@@ -7129,6 +7134,10 @@ function renderBuilderPanel(): string {
   }).join('');
   return '<section aria-label="Add elements" style="padding:10px 12px;border-bottom:1px solid var(--dm-separator);">' +
     '<div style="font-size:12px;font-weight:600;margin-bottom:7px;color:var(--dm-text);">Add elements · Site styles</div>' +
+    '<div style="display:flex;gap:6px;align-items:center;justify-content:space-between;padding:7px 8px;margin-bottom:8px;border:1px solid var(--dm-accent-border);border-radius:6px;background:var(--dm-accent-bg);">' +
+    '<span style="font-size:10px;color:var(--dm-text);">Selected: <b>' + escapeAttr(info?.tagName?.toLowerCase() || 'page') + '</b>' +
+      (info?.className ? ' · ' + escapeAttr(info.className.slice(0,42)) : '') + '</span>' +
+    '<button type="button" data-dm-action="builder-open-design" style="background:transparent;border:0;color:var(--dm-accent);font-size:10px;cursor:pointer;white-space:nowrap;">Style selected</button></div>' +
     '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Reuse a class from this page, or leave blank to use the element\'s global style. Click an element to insert it.</div>' +
     '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">Search existing classes or create a new one</label>' +
     '<input data-dm-builder-class list="dm-builder-site-classes" aria-label="Element CSS class" value="' + escapeAttr(builderClassInput) + '" placeholder="Search classes..." style="box-sizing:border-box;width:100%;margin-bottom:6px;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;"/>' +
@@ -10535,6 +10544,7 @@ function setupDelegation() {
           else { pendingBuilderKind = null; void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation)); }
           break;
         case 'confirm-builder-insert': void runInspectorAction(confirmBuilderInsert(operation)); break;
+        case 'builder-open-design': tab = 'design'; render(); break;
         case 'cancel-builder-insert':
           pendingBuilderKind = null; render();
           void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation));
