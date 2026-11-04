@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Dev Agent",
   "version": "3.1.0",
-  "description": "Dave Design — visual website editor with element building, styling, and MCP agent handoff",
+  "description": "Edit websites visually, track changes, and hand off updates to coding agents.",
   "permissions": [
     "activeTab",
     "storage",

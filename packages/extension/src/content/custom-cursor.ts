@@ -1,61 +1,39 @@
-// ============================================================
-// Design Mode — Custom cursor (app icon while the panel is open)
-// ============================================================
+// Native browser cursor for Dev Agent. The extension's orange code icon
+// belongs in the browser toolbar, not under the user's mouse pointer.
+// Retain the public helpers so inspector interaction remains compatible.
 
-const SETTING_KEY = 'dm-custom-cursor';
-
-let enabled = true;
 let active = false;
 let inspectProbe: () => boolean = () => false;
 
-// -webkit-image-set at 2x renders the 48px icon at ~24px on every display
-// density; the keyword fallback keeps the cursor usable if the image
-// fails to load. The icon must stay listed in web_accessible_resources.
-function iconCursor(fallback: string): string {
-  const url = browser.runtime.getURL('icons/icon48.png');
-  return `-webkit-image-set(url("${url}") 2x) 4 4, ${fallback}`;
-}
-
 export function baseCursor(): string {
-  return enabled ? iconCursor('crosshair') : 'crosshair';
+  return 'default';
 }
 
-function repaint() {
-  document.documentElement.style.cursor = inspectProbe()
-    ? baseCursor()
-    : (enabled ? iconCursor('default') : '');
+function repaint(): void {
+  // The inspect state still controls when the extension owns the cursor.
+  // A normal arrow is used rather than an image or crosshair.
+  document.documentElement.style.cursor = inspectProbe() ? 'default' : '';
 }
 
-export function initCustomCursor(isInspectActive: () => boolean) {
+export function initCustomCursor(isInspectActive: () => boolean): void {
   inspectProbe = isInspectActive;
 }
 
-export function applyBaseCursor() {
+export function applyBaseCursor(): void {
   active = true;
   repaint();
 }
 
-export function restoreBaseCursor() {
+export function restoreBaseCursor(): void {
   if (active) repaint();
   else document.documentElement.style.cursor = '';
 }
 
-export function clearBaseCursor() {
+export function clearBaseCursor(): void {
   active = false;
-  const cur = document.documentElement.style.cursor;
-  if (cur === 'crosshair' || cur === 'move' || cur.includes('image-set(')) {
+  const current = document.documentElement.style.cursor;
+  if (current === 'default' || current === 'crosshair' ||
+      current === 'move' || current.includes('image-set(')) {
     document.documentElement.style.cursor = '';
   }
 }
-
-try {
-  browser.storage?.local?.get?.([SETTING_KEY])?.then((r: any) => {
-    if (typeof r?.[SETTING_KEY] === 'boolean') enabled = r[SETTING_KEY];
-    if (active) repaint();
-  });
-  browser.storage?.onChanged?.addListener?.((changes, area) => {
-    if (area !== 'local' || !changes[SETTING_KEY]) return;
-    enabled = changes[SETTING_KEY].newValue !== false;
-    if (active) repaint();
-  });
-} catch {}
