@@ -6815,6 +6815,8 @@ function renderActionRow(): string {
     // the panel widens (Parent/Child pinned left, Undo/Redo pinned right).
     '<div style="flex:1;"></div>' +
     '<button data-dm-action="toggle-builder" title="Add elements" aria-pressed="' + builderOpen + '" style="' + bs() + (builderOpen ? 'color:var(--dm-accent);background:var(--dm-accent-bg);' : '') + '">' + icon('plus', 14) + '</button>' +
+    '<button data-dm-action="copy-appearance" title="Copy appearance from selected element" aria-label="Copy appearance" style="' + bs() + '">' + icon('paintbrush', 14) + '</button>' +
+    '<button data-dm-action="paste-appearance" title="Paste appearance independently onto selected element" aria-label="Paste appearance" style="' + bs(undefined, !!copiedAppearance) + (!copiedAppearance ? 'opacity:0.35;pointer-events:none;' : '') + '">' + icon('clipboard-paste', 14) + '</button>' +
     '<button data-dm-action="duplicate" title="Duplicate" style="' + bs() + '">' + icon('copy', 14) + '</button>' +
     '<button data-dm-action="delete" title="Remove" style="' + bs('var(--dm-danger)') + '">' + icon('trash', 14) + '</button>' +
     '<button data-dm-action="comment" title="Comment" style="' + bs() + '">' + icon('messageSquare', 14) + '</button>' +
@@ -6975,6 +6977,39 @@ function renderSealedFrameNotice(): string {
     '<div style="font-size:11px;line-height:1.55;color:var(--dm-text-dim);max-width:280px;">You can still inspect and edit the <b>wrapper</b> HTML (the outer document). To reach the inner content, open the artifact’s own HTML file directly.</div>' +
     '<button data-dm-action="inspect-wrapper" style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--dm-btn-bg);border:1px solid var(--dm-btn-border);border-radius:6px;color:var(--dm-text-secondary);cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;">' + icon('code', 13) + ' Inspect wrapper HTML</button>' +
     '</div>';
+}
+
+// Clipboard for independent, visual-only appearance transfer.
+let copiedAppearance: Array<{ property: string; value: string }> | null = null;
+let copiedAppearanceFrom = '';
+async function copySelectedAppearance(operation = beginInspectorOperation()): Promise<void> {
+  operation.assertCurrent();
+  const result = await operation.wait(send({ type: 'SP_COPY_APPEARANCE' }, operation));
+  if (!result.ok || !Array.isArray(result.changes)) {
+    showCaptureToast('error', result.error || 'Select an element first.');
+    return;
+  }
+  copiedAppearance = result.changes.filter((c: { property: unknown; value: unknown }) =>
+    typeof c.property === 'string' && typeof c.value === 'string');
+  copiedAppearanceFrom = result.tagName || 'element';
+  showCaptureToast('success', 'Appearance copied. Select a target and paste.');
+  render();
+}
+async function pasteSelectedAppearance(operation = beginInspectorOperation()): Promise<void> {
+  operation.assertCurrent();
+  if (!copiedAppearance?.length) { showCaptureToast('error', 'Copy an element\'s appearance first.'); return; }
+  if (!info?.id || info.tagName.toLowerCase() === 'body') { showCaptureToast('error', 'Select a target element.'); return; }
+  const res = await operation.wait(send({
+    type: 'SP_APPLY_STYLES', changes: copiedAppearance, groupLabel: 'Paste appearance (independent)',
+  }, operation));
+  if (res.error || res.ok === false) { showCaptureToast('error', res.error || 'Could not paste appearance.'); return; }
+  if (res.info) info = res.info;
+  if (res.styleChanges) styleChanges = res.styleChanges;
+  if (res.domChanges) domChanges = res.domChanges;
+  if (res.textChanges) textChanges = res.textChanges;
+  showCaptureToast('success', 'Appearance pasted independently. Undo to revert.');
+  await refreshChanges(operation);
+  render();
 }
 
 let builderOpen = false;
@@ -10412,6 +10447,8 @@ function setupDelegation() {
           break;
         }
         case 'toggle-builder': builderOpen = !builderOpen; tab = 'layers'; render(); if (builderOpen) void runInspectorAction(refreshBuilderClasses(operation)); break;
+        case 'copy-appearance': runInspectorAction(copySelectedAppearance(operation)); break;
+        case 'paste-appearance': runInspectorAction(pasteSelectedAppearance(operation)); break;
         case 'duplicate': runInspectorAction(domAction('duplicate', operation)); break;
         case 'delete': runInspectorAction(domAction('delete', operation)); break;
         case 'comment': startComment(); break;
