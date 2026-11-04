@@ -1185,10 +1185,7 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
         const realId = String(eid).replace(/::.*$/, '');
         const el = document.querySelector('[data-dm-' + realId + ']') as HTMLElement | null;
         if (el && typeof el.scrollIntoView === 'function') {
-          el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
-      if (['section','container','div','grid'].includes(kind)) {
-        requestAnimationFrame(() => highlightInsertedBuilderElement(id,kind));
-      }
+          el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
         }
       }
       sendResponse({ ok: true });
@@ -2024,7 +2021,8 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       const el = getElementById(id)!;
       setSelectedElementId(id);
       showSelect(el);
-      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+      requestAnimationFrame(() => highlightInsertedBuilderElement(id, kind));
       const parentId = el.parentElement ? getOrAssignId(el.parentElement) : '';
       const nextSiblingId = el.nextElementSibling ? getOrAssignId(el.nextElementSibling) : null;
       undoStack.push({ kind: 'dom', action: 'duplicate', elementId: id, html: el.outerHTML, parentId, nextSiblingId });
