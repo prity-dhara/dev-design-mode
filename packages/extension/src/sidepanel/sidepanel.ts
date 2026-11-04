@@ -902,7 +902,7 @@ port.onMessage.addListener((msg) => {
     return;
   }
   if (IS_SAFARI && msg.type === 'INSPECTOR_ERROR') {
-    inspectorError = String(msg.error || 'Connection lost. Reopen the Design Mode tab.');
+    inspectorError = String(msg.error || 'Connection lost. Reopen the Dev Agent tab.');
     render();
     return;
   }
@@ -997,7 +997,7 @@ function savePipSizeDebounced() {
 function beginFirefoxDock() {
   if (myTabId == null) return;
   if (captureToastTimer) clearTimeout(captureToastTimer);
-  captureToast = { kind: 'success', text: 'In the page window, click the Design Mode toolbar button (or use its shortcut) to finish docking. This editor stays open until the sidebar is ready.' };
+  captureToast = { kind: 'success', text: 'In the page window, click the Dev Agent toolbar button (or use its shortcut) to finish docking. This editor stays open until the sidebar is ready.' };
   render();
   void send({ type: 'SP_FIREFOX_DOCK_BEGIN' }).then(result => {
     if (!result.ok) showCaptureToast('error', result.error || 'Could not prepare the sidebar. This editor is still open.');
@@ -9649,14 +9649,14 @@ function renderSettingsView(): string {
     '<span style="font-size:10px;color:var(--dm-text-dim);">px</span>' +
     '</div></div>' +
     '<div style="' + sS + '"><div style="' + sT + '">Page cursor</div>' +
-    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Show the Design Mode icon as the mouse cursor on the page while the panel is open.</div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Show the Dev Agent icon as the mouse cursor on the page while the panel is open.</div>' +
     '<div style="display:flex;gap:4px;">' +
     '<button data-dm-custom-cursor="on" style="' + (customCursor ? activeBtn : inactiveBtn) + '">On</button>' +
     '<button data-dm-custom-cursor="off" style="' + (!customCursor ? activeBtn : inactiveBtn) + '">Off</button>' +
     '</div></div>' +
     (!launchCapabilities.floating ? '' :
     '<div style="' + sS + '"><div style="' + sT + '">Launch</div>' +
-    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Where the toolbar icon and Alt+D open Design Mode. Pin on top starts a floating opener — your browser needs a click in that window to pin.</div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Where the toolbar icon and Alt+D open Dev Agent. Pin on top starts a floating opener — your browser needs a click in that window to pin.</div>' +
     '<div role="group" aria-label="Launch surface" style="display:flex;gap:4px;">' +
     '<button data-dm-launch-surface="side-panel" aria-pressed="' + (launchSurface === 'side-panel') + '" style="' + (launchSurface === 'side-panel' ? activeBtn : inactiveBtn) + '">Side panel</button>' +
     '<button data-dm-launch-surface="floating" aria-pressed="' + (launchSurface === 'floating') + '" style="' + (launchSurface === 'floating' ? activeBtn : inactiveBtn) + '">Floating</button>' +
@@ -9680,7 +9680,7 @@ function renderSettingsView(): string {
     '<button data-dm-action="show-shortcuts" style="flex:1;padding:6px;background:var(--dm-btn-bg);border:1px solid var(--dm-btn-border);border-radius:6px;color:var(--dm-text-secondary);cursor:pointer;font-size:10px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px;">' + icon('keyboard', 11) + ' Keyboard shortcuts</button>' +
     '<button data-dm-action="reset-settings" style="flex:1;padding:6px;background:var(--dm-danger-bg);border:1px solid var(--dm-danger-border);border-radius:6px;color:var(--dm-text);cursor:pointer;font-size:10px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px;">' + icon('rotateCcw', 11) + ' Reset settings</button>' +
     '</div>' +
-    '</div><div style="margin-top:16px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Design Mode v' + extensionVersion() + '</div></div></div>';
+    '</div><div style="margin-top:16px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Dev Agent v' + extensionVersion() + '</div></div></div>';
 }
 
 function renderPipLaunchInterstitial(): string {
@@ -9715,7 +9715,7 @@ function detectBrowser(): string {
 
 function buildDiagnostics(): string {
   const lines = [
-    pad('Design Mode') + (extensionVersion() || 'dev'),
+    pad('Dev Agent') + (extensionVersion() || 'dev'),
     pad('Browser') + detectBrowser(),
     pad('Platform') + (navigator.platform || 'unknown') + ', ' + (navigator.language || 'unknown'),
     pad('Theme') + resolvedTheme,
@@ -9815,7 +9815,7 @@ function renderHelpView(): string {
     '<a href="mailto:hello@sandeepbaskaran.com" data-dm-help-target="email" style="' + linkStyle + '">Security disclosure ↗</a>' +
     '</div></div>' +
     '</div>' +
-    '<div style="margin-top:16px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Design Mode v' + extensionVersion() + '</div></div>' +
+    '<div style="margin-top:16px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Dev Agent v' + extensionVersion() + '</div></div>' +
     '</div>';
 }
 
@@ -9831,9 +9831,9 @@ function renderFileAccessView(): string {
     '<span style="font-size:14px;font-weight:600;color:var(--dm-text);">Local file</span></div>' +
     '<div style="' + card + '">' +
     '<p style="margin:0 0 12px 0;font-size:12px;line-height:1.5;color:var(--dm-text-secondary);">' +
-    (IS_FIREFOX ? 'Firefox has not allowed Design Mode to access this local file. Enable local-file access in the add-on’s permissions:' : 'Chrome blocks extensions from local files by default. To edit this file, allow Design Mode to access file URLs:') + '</p>' +
+    (IS_FIREFOX ? 'Firefox has not allowed Dev Agent to access this local file. Enable local-file access in the add-on’s permissions:' : 'Chrome blocks extensions from local files by default. To edit this file, allow Design Mode to access file URLs:') + '</p>' +
     '<ol style="margin:0 0 12px 0;padding-left:18px;">' +
-    step(IS_FIREFOX ? 'Type <strong style="color:var(--dm-text);">about:addons</strong> in Firefox’s address bar, select Design Mode, then open <strong style="color:var(--dm-text);">Permissions</strong>.' : 'Open Design Mode’s extension settings — the button below takes you there.') +
+    step(IS_FIREFOX ? 'Type <strong style="color:var(--dm-text);">about:addons</strong> in Firefox’s address bar, select Dev Agent, then open <strong style="color:var(--dm-text);">Permissions</strong>.' : 'Open Design Mode’s extension settings — the button below takes you there.') +
     step('Turn on <strong style="color:var(--dm-text);">“' + (IS_FIREFOX ? 'Access local files on your computer' : 'Allow access to file URLs') + '”</strong>.') +
     step(IS_FIREFOX ? 'Come back to this file tab, reload the page, and reopen the sidebar.' : 'Chrome reloads the extension — come back to this tab and reopen the panel.') +
     '</ol>' +
@@ -9854,7 +9854,7 @@ function renderHoverGuideView(): string {
   const li = (t: string) => '<li style="margin:0 0 6px 0;font-size:12px;line-height:1.5;color:var(--dm-text-secondary);">' + t + '</li>';
 
   const steps = IS_SAFARI
-    ? li('Leave touch emulation and return to a normal macOS Safari webpage for mouse hover. Dock Web Inspector and use Design Mode’s own picker.')
+    ? li('Leave touch emulation and return to a normal macOS Safari webpage for mouse hover. Dock Web Inspector and use Dev Agent’s own picker.')
     : IS_FIREFOX
     ? li('In the ' + b('Responsive Design Mode') + ' toolbar, click the ' + b('touch simulation') + ' button (the finger / pointer icon) to turn it ' + b('off') + '.') +
       li('Keep any width you like — only touch simulation matters for hover.')
@@ -9908,7 +9908,7 @@ function renderContributeView(): string {
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">' +
     '<button data-dm-action="back-from-contribute" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('chevronLeft', 14) + '</button>' +
     '<span style="font-size:14px;font-weight:600;color:var(--dm-text);">Contribute</span></div>' +
-    '<p style="margin:0 0 18px 2px;font-size:12px;line-height:1.55;color:var(--dm-text-secondary);">Design Mode is free, forever — and open source. If it’s useful to you, here are a few ways to help.</p>' +
+    '<p style="margin:0 0 18px 2px;font-size:12px;line-height:1.55;color:var(--dm-text-secondary);">Dev Agent is free, forever — and open source. If it’s useful to you, here are a few ways to help.</p>' +
     '<div style="display:flex;flex-direction:column;gap:16px;">' +
 
     '<div><div style="' + sectionLabel + '">Spread the word</div>' +
@@ -9935,7 +9935,7 @@ function renderContributeView(): string {
     '</div></div>' +
 
     '</div>' +
-    '<div style="margin-top:18px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Design Mode v' + extensionVersion() + '</div></div>' +
+    '<div style="margin-top:18px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Dev Agent v' + extensionVersion() + '</div></div>' +
     '</div>';
 }
 
