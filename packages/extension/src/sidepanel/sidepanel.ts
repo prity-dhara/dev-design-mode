@@ -6815,8 +6815,8 @@ function renderActionRow(): string {
     // the panel widens (Parent/Child pinned left, Undo/Redo pinned right).
     '<div style="flex:1;"></div>' +
     '<button data-dm-action="toggle-builder" title="Add elements" aria-pressed="' + builderOpen + '" style="' + bs() + (builderOpen ? 'color:var(--dm-accent);background:var(--dm-accent-bg);' : '') + '">' + icon('plus', 14) + '</button>' +
-    '<button data-dm-action="copy-appearance" title="Copy appearance from selected element" aria-label="Copy appearance" style="' + bs() + '">' + icon('paintbrush', 14) + '</button>' +
-    '<button data-dm-action="paste-appearance" title="Paste appearance independently onto selected element" aria-label="Paste appearance" style="' + bs(undefined, !!copiedAppearance) + (!copiedAppearance ? 'opacity:0.35;pointer-events:none;' : '') + '">' + icon('clipboard-paste', 14) + '</button>' +
+    '<button data-dm-action="copy-appearance" title="Copy appearance from selected element" aria-label="Copy appearance" style="' + bs() + '">' + icon('copy', 14) + '</button>' +
+    '<button data-dm-action="paste-appearance" title="Paste appearance independently onto selected element" aria-label="Paste appearance" style="' + bs(undefined, !!copiedAppearance) + (!copiedAppearance ? 'opacity:0.35;pointer-events:none;' : '') + '">' + icon('clipboardPaste', 14) + '</button>' +
     '<button data-dm-action="duplicate" title="Duplicate" style="' + bs() + '">' + icon('copy', 14) + '</button>' +
     '<button data-dm-action="delete" title="Remove" style="' + bs('var(--dm-danger)') + '">' + icon('trash', 14) + '</button>' +
     '<button data-dm-action="comment" title="Comment" style="' + bs() + '">' + icon('messageSquare', 14) + '</button>' +
