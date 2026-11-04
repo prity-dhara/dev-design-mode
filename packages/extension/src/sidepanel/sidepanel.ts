@@ -7058,6 +7058,45 @@ function renderStylePasteOptions(): string {
 }
 
 let builderOpen = false;
+let builderInsertPosition: 'before' | 'inside' | 'after' = 'after';
+let pendingBuilderKind: string | null = null;
+let pendingBuilderTarget: string | undefined;
+async function previewBuilderKind(kind: string, operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  pendingBuilderKind = kind;
+  pendingBuilderTarget = info?.id;
+  const result = await send({
+    type: 'SP_PREVIEW_BUILDER_PLACEMENT', targetId: pendingBuilderTarget,
+    position: builderInsertPosition,
+  },operation);
+  if (!result.ok) {
+    showCaptureToast('error','This element cannot be inserted at that position. Try Before or After.');
+    pendingBuilderKind = null;
+  }
+  render();
+}
+async function confirmBuilderInsert(operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  if (!pendingBuilderKind) return;
+  const kind = pendingBuilderKind;
+  const className = builderClassInput.trim();
+  const res = await send({
+    type: 'SP_ADD_BUILDER_ELEMENT', kind, className: className || undefined,
+    targetId: pendingBuilderTarget, position: builderInsertPosition,
+  },operation);
+  if (res.error || !res.ok) {
+    showCaptureToast('error',res.error || 'Could not insert element.');
+    return;
+  }
+  pendingBuilderKind = null;
+  if (res.info) info = res.info;
+  await refreshDomTree(operation);
+  await refreshChanges(operation);
+  builderOpen = false;
+  tab = 'design';
+  render();
+}
+
 type BuilderSiteClass = { name: string; count: number; kind: string };
 let builderSiteClasses: BuilderSiteClass[] = [];
 let builderClassInput = '';
@@ -7096,9 +7135,18 @@ function renderBuilderPanel(): string {
     '<datalist id="dm-builder-site-classes">' + suggestions + '</datalist>' +
     '<select data-dm-builder-select aria-label="Choose existing CSS class" style="box-sizing:border-box;width:100%;margin-bottom:8px;padding:6px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;">' +
     '<option value="">Select site class (' + builderSiteClasses.length + ' found)</option>' + grouped + '</select>' +
+    '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">Placement relative to selected element</label>' +
+    '<select data-dm-builder-position style="width:100%;padding:6px;margin-bottom:8px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;">' +
+    ['before','inside','after'].map(position =>
+      '<option value="' + position + '"' + (builderInsertPosition === position ? ' selected' : '') + '>' + position.charAt(0).toUpperCase() + position.slice(1) + '</option>').join('') +
+    '</select>' +
     '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;">' +
     kinds.map(([kind,label]) => '<button type="button" data-dm-builder-kind="' + kind + '" style="padding:8px 4px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:10px;">+ ' + label + '</button>').join('') +
-    '</div></section>';
+    '</div>' +
+    (pendingBuilderKind ? '<div style="display:flex;gap:6px;align-items:center;margin-top:8px;">' +
+      '<button type="button" data-dm-action="confirm-builder-insert" style="flex:1;padding:8px;border:1px solid var(--dm-accent-border);border-radius:6px;background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;font-weight:600;">Insert ' + escapeAttr(pendingBuilderKind) + ' here</button>' +
+      '<button type="button" data-dm-action="cancel-builder-insert" style="padding:8px;border:1px solid var(--dm-separator);border-radius:6px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:11px;">Cancel</button></div>' : '') +
+    '</section>';
 }
 
 function renderLayersTab(): string {
@@ -10450,19 +10498,9 @@ function setupDelegation() {
     // script change tracker so MCP sees a real DOM insertion, not just preview HTML.
     const builderBtn = target.closest<HTMLElement>('[data-dm-builder-kind]');
     if (builderBtn) {
+      builderClassInput = (root.querySelector<HTMLInputElement>('[data-dm-builder-class]')?.value || '').trim();
       const kind = builderBtn.dataset.dmBuilderKind;
-      const className = (root.querySelector<HTMLInputElement>('[data-dm-builder-class]')?.value || '').trim();
-      builderClassInput = className;
-      runInspectorAction((async () => {
-        const res = await send({ type: 'SP_ADD_BUILDER_ELEMENT', kind, className: className || undefined, targetId: info?.id }, operation);
-        if (res.error || !res.ok) {
-          showCaptureToast('error', res.error || 'Could not insert element.');
-          return;
-        }
-        if (res.info) info = res.info;
-        await refreshDomTree(operation);
-        await refreshChanges(operation);
-      })());
+      if (kind) void runInspectorAction(previewBuilderKind(kind,operation));
       return;
     }
 
@@ -10491,7 +10529,16 @@ function setupDelegation() {
           }));
           break;
         }
-        case 'toggle-builder': builderOpen = !builderOpen; tab = 'layers'; render(); if (builderOpen) void runInspectorAction(refreshBuilderClasses(operation)); break;
+        case 'toggle-builder':
+          builderOpen = !builderOpen; tab = 'layers'; render();
+          if (builderOpen) void runInspectorAction(refreshBuilderClasses(operation));
+          else { pendingBuilderKind = null; void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation)); }
+          break;
+        case 'confirm-builder-insert': void runInspectorAction(confirmBuilderInsert(operation)); break;
+        case 'cancel-builder-insert':
+          pendingBuilderKind = null; render();
+          void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation));
+          break;
         case 'copy-appearance': runInspectorAction(copySelectedAppearance(operation)); break;
         case 'paste-appearance': runInspectorAction(pasteSelectedAppearance(operation)); break;
         case 'hide-style-paste-options': stylePasteOptionsOpen = false; render(); break;
@@ -12896,6 +12943,15 @@ function setupDelegation() {
   // Change handler (selects)
   root.addEventListener('change', (e) => {
     const target = e.target as HTMLElement;
+    const builderPosition = target.closest<HTMLSelectElement>('[data-dm-builder-position]');
+    if (builderPosition) {
+      const value = builderPosition.value;
+      if (value === 'before' || value === 'inside' || value === 'after') {
+        builderInsertPosition = value;
+        if (pendingBuilderKind) void runInspectorAction(previewBuilderKind(pendingBuilderKind));
+      }
+      return;
+    }
     const styleCategoryInput = target.closest<HTMLInputElement>('[data-dm-style-category]');
     if (styleCategoryInput) {
       const category = styleCategoryInput.dataset.dmStyleCategory as StyleCategory;
