@@ -29,6 +29,7 @@ import { getStyleChanges, getTextChanges, getDomChanges, clearAllChanges, applyS
 import { isSafeRichTextHref } from '../rich-text-preservation';
 import { copyElement, pasteElement, duplicateElement, moveElement } from './html-editor';
 import { addBuilderElement, BUILDER_KINDS, type BuilderKind } from './visual-builder';
+import { discoverSiteClasses } from './site-class-discovery';
 import { isTypingTarget } from './shortcut-binding';
 import { deleteElements, type DeleteCommand } from './delete-command';
 import { beginMove, type MoveCommand } from './move-command';
@@ -1940,6 +1941,11 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
         return true;
       }
       sendResponse({ error: 'No parent' });
+      break;
+    }
+
+    case 'GET_SITE_CLASSES': {
+      sendResponse({ ok: true, classes: discoverSiteClasses() });
       break;
     }
 
