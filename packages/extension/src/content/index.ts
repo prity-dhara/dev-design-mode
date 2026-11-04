@@ -2027,7 +2027,7 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       const nextSiblingId = el.nextElementSibling ? getOrAssignId(el.nextElementSibling) : null;
       undoStack.push({ kind: 'dom', action: 'duplicate', elementId: id, html: el.outerHTML, parentId, nextSiblingId });
       redoStack.length = 0;
-      getChangesPayload().then(p => sendResponse({ ok: true, info: { ...buildElementInfo(el), element: undefined }, ...p, undoCount: undoStack.length, redoCount: redoStack.length }))
+      getChangesPayload().then(p => sendResponse({ ok: true, parentId, info: { ...buildElementInfo(el), element: undefined }, ...p, undoCount: undoStack.length, redoCount: redoStack.length }))
         .catch(error => sendResponse({ ok: false, error: String(error) }));
       return true;
     }
