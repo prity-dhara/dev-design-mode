@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Dave Design",
+  "name": "Dev Agent",
   "version": "3.1.0",
   "description": "Dave Design — visual website editor with element building, styling, and MCP agent handoff",
   "permissions": [
@@ -39,7 +39,7 @@
   },
   "sidebar_action": {
     "default_panel": "sidepanel/index.html",
-    "default_title": "Dave Design",
+    "default_title": "Dev Agent",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -47,7 +47,7 @@
     }
   },
   "action": {
-    "default_title": "Dave Design",
+    "default_title": "Dev Agent",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -89,14 +89,14 @@
         "default": "Alt+D",
         "mac": "Alt+D"
       },
-      "description": "Toggle Dave Design"
+      "description": "Toggle Dev Agent"
     },
     "capture-screenshot": {
       "suggested_key": {
         "default": "Alt+S",
         "mac": "Alt+S"
       },
-      "description": "Capture with Dave Design"
+      "description": "Capture with Dev Agent"
     }
   }
 }
