@@ -2754,6 +2754,22 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       break;
     }
 
+    case 'PREVIEW_MOVE_PLACEMENT': {
+      const source = typeof msg.sourceId === 'string' ? getElementById(msg.sourceId) : null;
+      const target = typeof msg.targetId === 'string' ? getElementById(msg.targetId) : null;
+      const position = msg.position as InsertPosition;
+      const badParents = new Set(['A','BUTTON','P','H1','H2','H3','H4','H5','H6','IMG','INPUT','BR','HR','SPAN','LABEL','TEXTAREA','SELECT','OPTION']);
+      const valid = !!source && !!target && !!source.parentElement &&
+        source !== document.body && source !== document.documentElement &&
+        target !== source && !source.contains(target) &&
+        !source.closest('[data-dm-builder-overlay]') && !target.closest('[data-dm-builder-overlay]') &&
+        ['before','after','inside'].includes(position) &&
+        (position !== 'inside' ? !!target.parentElement : !badParents.has(target.tagName));
+      if (!valid) { clearBuilderPreview(); sendResponse({ ok:false, error:'Choose another destination outside the element being moved.' }); break; }
+      sendResponse({ ok: previewBuilderPlacement(msg.targetId,position) });
+      break;
+    }
+
     case 'REORDER_LAYER': {
       const source = getElementById(msg.sourceId);
       const target = getElementById(msg.targetId);
@@ -2775,9 +2791,12 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
         }
         return false;
       })();
-      const canDropInside = position === 'inside' ? !!source && !!target : true;
+      const invalidContainer = new Set(['A','BUTTON','P','H1','H2','H3','H4','H5','H6','IMG','INPUT','BR','HR','SPAN','LABEL','TEXTAREA','SELECT','OPTION']);
+      const safelyMovable = !!source && source !== document.body && source !== document.documentElement &&
+        !source.closest('[data-dm-builder-overlay]') && !target?.closest('[data-dm-builder-overlay]');
+      const canDropInside = position === 'inside' ? !!source && !!target && !invalidContainer.has(target.tagName) : true;
       const canDropSibling = position !== 'inside' ? !!source && !!target && !!target.parentElement : true;
-      if (source && target && !isDescendant && canDropInside && canDropSibling) {
+      if (source && target && safelyMovable && !isDescendant && canDropInside && canDropSibling) {
         const dmAttrParent = (p: HTMLElement | null) =>
           p && p !== document.body && p !== document.documentElement ? getOrAssignId(p) : undefined;
         let origin: { parentSelector: string; index: number; parentId?: string } | undefined;
@@ -2821,7 +2840,10 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
         const info = buildElementInfo(source);
         onElementSelected(info);
       }
-      getChangesPayload().then(p => sendResponse({ ok: true, ...p })).catch(error => sendResponse({ ok: false, error: String(error) }));
+      clearBuilderPreview();
+      getChangesPayload().then(p => sendResponse({ ok: true, ...p, undoCount: undoStack.length, redoCount: redoStack.length,
+        info: source && source.isConnected ? { ...buildElementInfo(source), element: undefined } : null,
+      })).catch(error => sendResponse({ ok: false, error: String(error) }));
       return true;
       break;
     }
