@@ -6978,17 +6978,44 @@ function renderSealedFrameNotice(): string {
 }
 
 let builderOpen = false;
+type BuilderSiteClass = { name: string; count: number; kind: string };
+let builderSiteClasses: BuilderSiteClass[] = [];
+let builderClassInput = '';
+async function refreshBuilderClasses(operation = beginInspectorOperation()) {
+  const result = await send({ type: 'SP_GET_SITE_CLASSES' }, operation);
+  if (result.ok && Array.isArray(result.classes)) {
+    builderSiteClasses = result.classes.filter((c: BuilderSiteClass) =>
+      typeof c.name === 'string' && typeof c.kind === 'string' &&
+      typeof c.count === 'number');
+    render();
+  }
+}
 function renderBuilderPanel(): string {
   const kinds = [
     ['section', 'Section'], ['container', 'Container'], ['div', 'Div'],
     ['heading', 'Heading'], ['paragraph', 'Paragraph'], ['button', 'Button'],
     ['image', 'Image'], ['card', 'Card'], ['grid', 'Grid'],
   ];
+  const topClasses = builderSiteClasses.slice(0, 130);
+  const suggestions = topClasses.map(c =>
+    '<option value="' + escapeAttr(c.name) + '" label="' + escapeAttr(c.kind + ' · ' + c.count + ' use(s)') + '"></option>').join('');
+  const groups = ['heading','paragraph','button','section','container','card','grid','image','div','other'];
+  const grouped = groups.map(kind => {
+    const group = topClasses.filter(c => c.kind === kind).slice(0, 14);
+    if (!group.length) return '';
+    return '<optgroup label="' + kind + '">' +
+      group.map(c => '<option value="' + escapeAttr(c.name) + '">' +
+        escapeAttr(c.name) + ' (' + c.count + ')</option>').join('') +
+      '</optgroup>';
+  }).join('');
   return '<section aria-label="Add elements" style="padding:10px 12px;border-bottom:1px solid var(--dm-separator);">' +
-    '<div style="font-size:12px;font-weight:600;margin-bottom:7px;color:var(--dm-text);">Add elements</div>' +
-    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Click to insert inside the selected container, or beside the selected element. No selection adds to the page.</div>' +
-    '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">CSS class (optional)</label>' +
-    '<input data-dm-builder-class aria-label="New element CSS class" placeholder="e.g. feature-card" style="box-sizing:border-box;width:100%;margin-bottom:8px;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;"/>' +
+    '<div style="font-size:12px;font-weight:600;margin-bottom:7px;color:var(--dm-text);">Add elements · Site styles</div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Reuse a class from this page, or leave blank to use the element\'s global style. Click an element to insert it.</div>' +
+    '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">Search existing classes or create a new one</label>' +
+    '<input data-dm-builder-class list="dm-builder-site-classes" aria-label="Element CSS class" value="' + escapeAttr(builderClassInput) + '" placeholder="Search classes..." style="box-sizing:border-box;width:100%;margin-bottom:6px;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;"/>' +
+    '<datalist id="dm-builder-site-classes">' + suggestions + '</datalist>' +
+    '<select data-dm-builder-select aria-label="Choose existing CSS class" style="box-sizing:border-box;width:100%;margin-bottom:8px;padding:6px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;">' +
+    '<option value="">Select site class (' + builderSiteClasses.length + ' found)</option>' + grouped + '</select>' +
     '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;">' +
     kinds.map(([kind,label]) => '<button type="button" data-dm-builder-kind="' + kind + '" style="padding:8px 4px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:10px;">+ ' + label + '</button>').join('') +
     '</div></section>';
@@ -10339,12 +10366,21 @@ function setupDelegation() {
       trackFeature({ feature: 'help', outcome: 'attempt', target: helpLink.dataset.dmHelpTarget });
     }
 
+    const classSelect = target.closest<HTMLSelectElement>('[data-dm-builder-select]');
+    if (classSelect) {
+      const classInput = document.querySelector<HTMLInputElement>('[data-dm-builder-class]');
+      if (classInput) classInput.value = classSelect.value;
+      builderClassInput = classSelect.value;
+      return;
+    }
+
     // Visual Builder preset insertion. Route edits through the existing content
     // script change tracker so MCP sees a real DOM insertion, not just preview HTML.
     const builderBtn = target.closest<HTMLElement>('[data-dm-builder-kind]');
     if (builderBtn) {
       const kind = builderBtn.dataset.dmBuilderKind;
       const className = (document.querySelector<HTMLInputElement>('[data-dm-builder-class]')?.value || '').trim();
+      builderClassInput = className;
       runInspectorAction((async () => {
         const res = await send({ type: 'SP_ADD_BUILDER_ELEMENT', kind, className: className || undefined, targetId: info?.id }, operation);
         if (res.error || !res.ok) {
@@ -10383,7 +10419,7 @@ function setupDelegation() {
           }));
           break;
         }
-        case 'toggle-builder': builderOpen = !builderOpen; tab = 'layers'; render(); break;
+        case 'toggle-builder': builderOpen = !builderOpen; tab = 'layers'; render(); if (builderOpen) void runInspectorAction(refreshBuilderClasses(operation)); break;
         case 'duplicate': runInspectorAction(domAction('duplicate', operation)); break;
         case 'delete': runInspectorAction(domAction('delete', operation)); break;
         case 'comment': startComment(); break;
