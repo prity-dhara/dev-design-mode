@@ -7061,6 +7061,34 @@ let builderOpen = false;
 let builderInsertPosition: 'before' | 'inside' | 'after' = 'after';
 let pendingBuilderKind: string | null = null;
 let pendingBuilderTarget: string | undefined;
+async function buildInsideSelectedParent(operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  const result = await operation.wait(send({ type: 'SP_SELECT_PARENT' },operation));
+  if (!result || result.error || result.ok === false) {
+    showCaptureToast('error','Unable to select the parent wrapper.'); return;
+  }
+  if (result.payload || result.info) info = result.payload || result.info;
+  // Parent is now the selected element, and next insert goes inside it.
+  builderInsertPosition = 'inside';
+  pendingBuilderKind = null;
+  await operation.wait(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation));
+  render();
+}
+async function makeSelectedWrapperHorizontal(operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  if (!info?.id || !['div','section','article','main'].includes(info.tagName.toLowerCase())) {
+    showCaptureToast('error','Select a container or div to change its layout.'); return;
+  }
+  await applyStylesBatch([
+    { property:'display', value:'flex' },
+    { property:'flexDirection', value:'row' },
+    { property:'alignItems', value:'center' },
+    { property:'columnGap', value:'24px' },
+    { property:'flexWrap', value:'wrap' },
+  ],'Horizontal wrapper layout',undefined,operation);
+  showCaptureToast('success','Wrapper set to horizontal flex. Adjust spacing in Design.');
+}
+
 async function previewBuilderKind(kind: string, operation = beginInspectorOperation()) {
   operation.assertCurrent();
   pendingBuilderKind = kind;
@@ -7144,6 +7172,10 @@ function renderBuilderPanel(): string {
     '<datalist id="dm-builder-site-classes">' + suggestions + '</datalist>' +
     '<select data-dm-builder-select aria-label="Choose existing CSS class" style="box-sizing:border-box;width:100%;margin-bottom:8px;padding:6px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;">' +
     '<option value="">Select site class (' + builderSiteClasses.length + ' found)</option>' + grouped + '</select>' +
+    '<div style="display:flex;gap:5px;margin-bottom:8px;">' +
+      '<button type="button" data-dm-action="builder-select-parent" style="flex:1;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:10px;">↑ Use parent wrapper</button>' +
+      '<button type="button" data-dm-action="builder-horizontal" style="flex:1;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:10px;">↔ Horizontal layout</button></div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">For a paragraph beside a heading: select the heading, choose Use parent wrapper, then Horizontal layout. Add the paragraph Inside.</div>' +
     '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">Placement relative to selected element</label>' +
     '<select data-dm-builder-position style="width:100%;padding:6px;margin-bottom:8px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;">' +
     ['before','inside','after'].map(position =>
@@ -10545,6 +10577,8 @@ function setupDelegation() {
           break;
         case 'confirm-builder-insert': void runInspectorAction(confirmBuilderInsert(operation)); break;
         case 'builder-open-design': tab = 'design'; render(); break;
+        case 'builder-select-parent': void runInspectorAction(buildInsideSelectedParent(operation)); break;
+        case 'builder-horizontal': void runInspectorAction(makeSelectedWrapperHorizontal(operation)); break;
         case 'cancel-builder-insert':
           pendingBuilderKind = null; render();
           void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation));
