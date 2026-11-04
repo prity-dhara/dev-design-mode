@@ -1954,26 +1954,44 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       const computed = window.getComputedStyle(source);
       // Safe, finite allowlist of visual-only styles. No geometry, interactivity,
       // positioning, transitions or animation settings are transferred.
-      const properties = [
-        'font-family', 'font-size', 'font-weight', 'font-style',
-        'line-height', 'letter-spacing', 'text-transform', 'text-align',
-        'color', 'background-color', 'border-radius',
-        'box-shadow', 'text-shadow', 'opacity', 'text-decoration-line',
-      ];
-      // Keep the copy independent and avoid painting transparent source backgrounds
-      // over the target. Computed CSS may use comma or modern space syntax.
-      const changes = properties
-        .map(property => ({ property, value: computed.getPropertyValue(property).trim() }))
-        .filter(({ property, value }) => {
-          if (!value) return false;
-          if (property !== 'background-color') return true;
-          const compact = value.toLowerCase().replace(/\s+/g, '');
-          return compact !== 'transparent' &&
-            compact !== 'rgba(0,0,0,0)' &&
-            compact !== 'rgb(0 0 0 / 0)'.replace(/\s+/g, '') &&
-            compact !== 'rgb(0 0 0 / 0%)'.replace(/\s+/g, '');
-        });
-      sendResponse({ ok: true, changes, tagName: source.tagName.toLowerCase() });
+      // Each group is independent. The side panel chooses which groups to
+      // paste; copying never edits the source element or its CSS classes.
+      const groups = {
+        appearance: [
+          'font-family', 'font-size', 'font-weight', 'font-style',
+          'line-height', 'letter-spacing', 'text-transform', 'text-align',
+          'color', 'background-color', 'border-radius',
+          'box-shadow', 'text-shadow', 'opacity', 'text-decoration-line',
+        ],
+        spacing: [
+          'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+          'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+          'row-gap', 'column-gap',
+        ],
+        layout: [
+          'display', 'flex-direction', 'flex-wrap',
+          'justify-content', 'align-items', 'align-content',
+          'grid-auto-flow',
+        ],
+      } as const;
+      const changesByGroup = Object.fromEntries(
+        Object.entries(groups).map(([group, properties]) => [group,
+          properties.map(property => ({
+            property, value: computed.getPropertyValue(property).trim(),
+          })).filter(({ property, value }) => {
+            if (!value || value === 'normal' || value === 'none' && property === 'box-shadow') return false;
+            if (property !== 'background-color') return true;
+            // Do not transfer transparent backgrounds: they may hide an
+            // intended surface behind a heading or section.
+            const compact = value.toLowerCase().replace(/\\s+/g, '');
+            return compact !== 'transparent' &&
+              compact !== 'rgba(0,0,0,0)' &&
+              compact !== 'rgb(0 0 0 / 0)'.replace(/\\s+/g, '') &&
+              compact !== 'rgb(0 0 0 / 0%)'.replace(/\\s+/g, '');
+          }),
+        ]),
+      );
+      sendResponse({ ok: true, changesByGroup, tagName: source.tagName.toLowerCase() });
       break;
     }
 
