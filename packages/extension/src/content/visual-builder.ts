@@ -2,6 +2,7 @@
 import { canEditRoute } from './route-edit-guard';
 import { getElementById, getOrAssignId, generateSelector } from './helpers';
 import { recordDomChange } from './change-tracker';
+import { isSafeClassName } from './site-class-discovery';
 
 export const BUILDER_KINDS = ['section', 'container', 'div', 'heading', 'paragraph', 'button', 'image', 'card', 'grid'] as const;
 export type BuilderKind = typeof BUILDER_KINDS[number];
@@ -9,16 +10,13 @@ export type BuilderKind = typeof BUILDER_KINDS[number];
 export function addBuilderElement(kind: BuilderKind, targetId?: string, className?: string): string | null {
   if (!canEditRoute() || !BUILDER_KINDS.includes(kind)) return null;
   // The class is always a single safe CSS class, never HTML or a selector.
-  if (className && !/^[a-zA-Z_][\w-]{0,79}$/.test(className)) return null;
+  if (className && !isSafeClassName(className)) return null;
   const tag = ({ section: 'section', container: 'div', div: 'div', heading: 'h2',
     paragraph: 'p', button: 'button', image: 'img', card: 'article', grid: 'div' } as const)[kind];
   const el = document.createElement(tag);
-  const defaults: Record<BuilderKind, string> = {
-    section: 'new-section', container: 'container', div: 'new-div',
-    heading: 'new-heading', paragraph: 'new-paragraph', button: 'new-button',
-    image: 'new-image', card: 'new-card', grid: 'new-grid',
-  };
-  el.classList.add(className || defaults[kind]);
+  // Reuse the site's real class if one is chosen; don't invent another class on top.
+  // Without a choice, use semantic HTML and existing global element styles.
+  if (className) el.classList.add(className);
   if (kind === 'heading') el.textContent = 'Your heading';
   if (kind === 'paragraph') el.textContent = 'Add your description here.';
   if (kind === 'button') { el.textContent = 'Button'; (el as HTMLButtonElement).type = 'button'; }
@@ -28,8 +26,8 @@ export function addBuilderElement(kind: BuilderKind, targetId?: string, classNam
     const p = document.createElement('p'); p.textContent = 'Card description';
     el.append(h, p);
   }
-  if (kind === 'grid') el.style.display = 'grid';
-  if (kind === 'section') el.style.padding = '48px 24px';
+  // Never override the website's stylesheet with hardcoded defaults.
+  if (kind === 'grid' && !className) el.style.display = 'grid';
   const target = targetId ? getElementById(targetId) : null;
   if (target?.closest('[data-design-mode-root]')) return null;
   const canContain = target && !['IMG', 'INPUT', 'BR', 'HR', 'BUTTON', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(target.tagName);
