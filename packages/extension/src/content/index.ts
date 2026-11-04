@@ -1960,9 +1960,19 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
         'color', 'background-color', 'border-radius',
         'box-shadow', 'text-shadow', 'opacity', 'text-decoration-line',
       ];
-      const changes = properties.map(property => ({ property, value: computed.getPropertyValue(property).trim() }))
-        .filter(c => c.value && !(c.property === 'background-color' &&
-          /^(transparent|rgba?\\(0,\\s*0,\\s*0,\\s*0\\)|rgb\\(0 0 0 \\/ 0\\))$/.test(c.value)));
+      // Keep the copy independent and avoid painting transparent source backgrounds
+      // over the target. Computed CSS may use comma or modern space syntax.
+      const changes = properties
+        .map(property => ({ property, value: computed.getPropertyValue(property).trim() }))
+        .filter(({ property, value }) => {
+          if (!value) return false;
+          if (property !== 'background-color') return true;
+          const compact = value.toLowerCase().replace(/\s+/g, '');
+          return compact !== 'transparent' &&
+            compact !== 'rgba(0,0,0,0)' &&
+            compact !== 'rgb(0 0 0 / 0)'.replace(/\s+/g, '') &&
+            compact !== 'rgb(0 0 0 / 0%)'.replace(/\s+/g, '');
+        });
       sendResponse({ ok: true, changes, tagName: source.tagName.toLowerCase() });
       break;
     }
