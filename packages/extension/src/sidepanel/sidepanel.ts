@@ -6814,6 +6814,7 @@ function renderActionRow(): string {
     // Spacer + the spacer before Undo flank the middle cluster, centering it as
     // the panel widens (Parent/Child pinned left, Undo/Redo pinned right).
     '<div style="flex:1;"></div>' +
+    '<button data-dm-action="toggle-builder" title="Add elements" aria-pressed="' + builderOpen + '" style="' + bs() + (builderOpen ? 'color:var(--dm-accent);background:var(--dm-accent-bg);' : '') + '">' + icon('plus', 14) + '</button>' +
     '<button data-dm-action="duplicate" title="Duplicate" style="' + bs() + '">' + icon('copy', 14) + '</button>' +
     '<button data-dm-action="delete" title="Remove" style="' + bs('var(--dm-danger)') + '">' + icon('trash', 14) + '</button>' +
     '<button data-dm-action="comment" title="Comment" style="' + bs() + '">' + icon('messageSquare', 14) + '</button>' +
@@ -6974,6 +6975,23 @@ function renderSealedFrameNotice(): string {
     '<div style="font-size:11px;line-height:1.55;color:var(--dm-text-dim);max-width:280px;">You can still inspect and edit the <b>wrapper</b> HTML (the outer document). To reach the inner content, open the artifact’s own HTML file directly.</div>' +
     '<button data-dm-action="inspect-wrapper" style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--dm-btn-bg);border:1px solid var(--dm-btn-border);border-radius:6px;color:var(--dm-text-secondary);cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;">' + icon('code', 13) + ' Inspect wrapper HTML</button>' +
     '</div>';
+}
+
+let builderOpen = false;
+function renderBuilderPanel(): string {
+  const kinds = [
+    ['section', 'Section'], ['container', 'Container'], ['div', 'Div'],
+    ['heading', 'Heading'], ['paragraph', 'Paragraph'], ['button', 'Button'],
+    ['image', 'Image'], ['card', 'Card'], ['grid', 'Grid'],
+  ];
+  return '<section aria-label="Add elements" style="padding:10px 12px;border-bottom:1px solid var(--dm-separator);">' +
+    '<div style="font-size:12px;font-weight:600;margin-bottom:7px;color:var(--dm-text);">Add elements</div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Click to insert inside the selected container, or beside the selected element. No selection adds to the page.</div>' +
+    '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">CSS class (optional)</label>' +
+    '<input data-dm-builder-class aria-label="New element CSS class" placeholder="e.g. feature-card" style="box-sizing:border-box;width:100%;margin-bottom:8px;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;"/>' +
+    '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;">' +
+    kinds.map(([kind,label]) => '<button type="button" data-dm-builder-kind="' + kind + '" style="padding:8px 4px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:10px;">+ ' + label + '</button>').join('') +
+    '</div></section>';
 }
 
 function renderLayersTab(): string {
@@ -10076,7 +10094,7 @@ function render() {
     html = renderHeader() + renderHoverGuideView() + renderCaptureToast();
   } else {
     let tabContent = '';
-    if (tab === 'layers') tabContent = renderLayersTab();
+    if (tab === 'layers') tabContent = (builderOpen ? renderBuilderPanel() : '') + renderLayersTab();
     else if (tab === 'design') tabContent = renderDesignTab();
     else if (tab === 'changes') tabContent = renderChangesTab();
     if (routeEditingBlocked) tabContent = '<div role="status" style="padding:12px;color:var(--dm-text);font-size:12px;">Waiting for the destination page. Editing is paused to protect saved changes. If this persists, reload the page; review and export remain available.</div>' + tabContent;
@@ -10321,6 +10339,25 @@ function setupDelegation() {
       trackFeature({ feature: 'help', outcome: 'attempt', target: helpLink.dataset.dmHelpTarget });
     }
 
+    // Visual Builder preset insertion. Route edits through the existing content
+    // script change tracker so MCP sees a real DOM insertion, not just preview HTML.
+    const builderBtn = target.closest<HTMLElement>('[data-dm-builder-kind]');
+    if (builderBtn) {
+      const kind = builderBtn.dataset.dmBuilderKind;
+      const className = (document.querySelector<HTMLInputElement>('[data-dm-builder-class]')?.value || '').trim();
+      runInspectorAction((async () => {
+        const res = await send({ type: 'SP_ADD_BUILDER_ELEMENT', kind, className: className || undefined, targetId: info?.id }, operation);
+        if (res.error || !res.ok) {
+          showCaptureToast('error', res.error || 'Could not insert element.');
+          return;
+        }
+        if (res.info) info = res.info;
+        await refreshDomTree(operation);
+        await refreshChanges(operation);
+      })());
+      return;
+    }
+
     // Action buttons
     const actionBtn = target.closest<HTMLElement>('[data-dm-action]');
     if (actionBtn) {
@@ -10346,6 +10383,7 @@ function setupDelegation() {
           }));
           break;
         }
+        case 'toggle-builder': builderOpen = !builderOpen; tab = 'layers'; render(); break;
         case 'duplicate': runInspectorAction(domAction('duplicate', operation)); break;
         case 'delete': runInspectorAction(domAction('delete', operation)); break;
         case 'comment': startComment(); break;
