@@ -68,7 +68,7 @@ export function highlightInsertedBuilderElement(elementId: string, kind: Builder
   overlay.appendChild(label);
   document.documentElement.appendChild(overlay);
   preview = overlay;
-  setTimeout(() => { if (preview === overlay) clearBuilderPreview(); }, 4500);
+  setTimeout(() => { if (preview === overlay) clearBuilderPreview(); }, 12000);
 }
 export function addBuilderElement(kind: BuilderKind, targetId?: string, className?: string, position: InsertPosition = 'after'): string | null {
   if (!canEditRoute() || !BUILDER_KINDS.includes(kind)) return null;
