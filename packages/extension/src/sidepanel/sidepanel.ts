@@ -2381,6 +2381,13 @@ browser.runtime.onMessage.addListener((msg, sender) => {
     }
     const selectedElementChanged = info?.id !== msg.payload?.id;
     info = msg.payload; hoverInfo = null; commentMode = false;
+    if (movePickDestination && selectedElementChanged && info?.id) {
+      movePickDestination = false;
+      moveDestinationId = info.id;
+      inspecting = false;
+      void runInspectorAction(send({ type:'SP_SET_INSPECT', on:false }));
+      void runInspectorAction(updateMovePreview());
+    }
     if (selectedElementChanged && builderOpen) {
       // A real selection supersedes any previously remembered parent wrapper.
       builderTargetMode = 'selected';
@@ -6840,6 +6847,7 @@ function renderActionRow(): string {
     '<button data-dm-action="copy-appearance" title="Copy styles" aria-label="Copy styles" style="' + bs() + '">' + icon('paintBucket', 14) + '</button>' +
     '<button data-dm-action="paste-appearance" title="Paste selected styles independently" aria-label="Paste styles" style="' + bs(undefined, !!copiedStyles) + (!copiedStyles ? 'opacity:0.35;pointer-events:none;' : '') + '">' + icon('clipboardPaste', 14) + '</button>' +
     '<button data-dm-action="duplicate" title="Duplicate" style="' + bs() + '">' + icon('copy', 14) + '</button>' +
+    '<button data-dm-action="move-to" title="Move element to another location" aria-label="Move element" style="' + bs() + '">' + icon('move', 14) + '</button>' +
     '<button data-dm-action="delete" title="Remove" style="' + bs('var(--dm-danger)') + '">' + icon('trash', 14) + '</button>' +
     '<button data-dm-action="comment" title="Comment" style="' + bs() + '">' + icon('messageSquare', 14) + '</button>' +
     '<button data-dm-action="region-comment" title="Annotate" style="' + bs(undefined, true) + ';' + (awaitingRegionDraw ? 'color:var(--dm-accent);background:var(--dm-accent-bg);border-color:var(--dm-accent-border);' : '') + '">' + icon('squareDashedMousePointer', 14) + '</button>' +
@@ -7076,6 +7084,81 @@ function renderStylePasteOptions(): string {
     }).join('') +
     '<p style="margin:6px 0 8px;font-size:10px;color:var(--dm-text-dim);">Width, height, positioning and animations are never copied. Computed spacing values may need responsive adjustments.</p>' +
     '<button type="button" data-dm-action="paste-appearance" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--dm-accent-border);background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;font-weight:600;">Paste selected styles</button>' +
+    '</section>';
+}
+
+// Move-to placement keeps the actual source node and edits DOM hierarchy,
+ // never its left/top CSS offset.
+let moveSourceId: string | null = null;
+let moveDestinationId: string | null = null;
+let movePickDestination = false;
+let movePlacement: 'before' | 'inside' | 'after' = 'after';
+async function updateMovePreview(operation = beginInspectorOperation()) {
+  if (!moveSourceId || !moveDestinationId) return;
+  const result = await send({ type:'SP_PREVIEW_MOVE_PLACEMENT', sourceId:moveSourceId,
+    targetId:moveDestinationId, position:movePlacement }, operation);
+  if (!result.ok) showCaptureToast('error', result.error || 'Invalid move location.');
+}
+async function startMoveTo(operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  if (!info?.id || ['body','html'].includes(info.tagName.toLowerCase())) {
+    showCaptureToast('error','Select a page element to move.'); return;
+  }
+  moveSourceId = info.id;
+  moveDestinationId = null;
+  movePlacement = 'after';
+  movePickDestination = true;
+  const res = await send({ type:'SP_SET_INSPECT', on:true },operation);
+  if (typeof res.inspecting === 'boolean') inspecting = res.inspecting;
+  showCaptureToast('success','Now click the destination element on the page.');
+  render();
+}
+async function cancelMoveTo(operation = beginInspectorOperation()) {
+  moveSourceId = null;
+  moveDestinationId = null;
+  movePickDestination = false;
+  await send({type:'SP_CLEAR_BUILDER_PREVIEW'},operation);
+  render();
+}
+async function confirmMoveTo(operation = beginInspectorOperation()) {
+  if (!moveSourceId || !moveDestinationId) return;
+  const preview = await send({type:'SP_PREVIEW_MOVE_PLACEMENT',
+    sourceId:moveSourceId, targetId:moveDestinationId, position:movePlacement},operation);
+  if (!preview.ok) { showCaptureToast('error', preview.error || 'Invalid destination.'); return; }
+  const res = await send({ type:'SP_REORDER_LAYER', sourceId:moveSourceId,
+    targetId:moveDestinationId, position:movePlacement },operation);
+  if (res.error || res.ok === false) {
+    showCaptureToast('error',res.error || 'Could not move the element.'); return;
+  }
+  if (res.info) info = res.info;
+  if (res.domChanges) domChanges = res.domChanges;
+  undoCount = res.undoCount ?? undoCount;
+  redoCount = res.redoCount ?? redoCount;
+  moveSourceId = null; moveDestinationId = null; movePickDestination = false;
+  await refreshDomTree(operation); await refreshChanges(operation);
+  showCaptureToast('success','Element moved. Undo to restore its original position.');
+  render();
+}
+function renderMoveToPanel(): string {
+  if (!moveSourceId) return '';
+  const positions: Array<'before'|'inside'|'after'> = ['before','inside','after'];
+  return '<section aria-label="Move element" style="padding:10px 12px;border-bottom:1px solid var(--dm-separator);">' +
+    '<strong style="font-size:12px;color:var(--dm-text);">Move element</strong>' +
+    '<p style="font-size:10px;color:var(--dm-text-secondary);margin:7px 0;">' +
+      (movePickDestination ? 'Click a destination on the page.' :
+       moveDestinationId ? 'Destination selected. Preview the location and confirm.' :
+       'Choose a destination on the page.') + '</p>' +
+    '<button type="button" data-dm-action="move-pick-destination" style="padding:8px;width:100%;border:1px solid var(--dm-accent-border);border-radius:5px;background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;">Pick destination on page</button>' +
+    '<div style="display:flex;gap:5px;margin:8px 0;">' + positions.map(p =>
+      '<button type="button" data-dm-move-position="' + p + '" style="flex:1;padding:7px 4px;font-size:10px;cursor:pointer;border:1px solid ' +
+      (movePlacement === p ? 'var(--dm-accent-border)' : 'var(--dm-separator)') +
+      ';background:' + (movePlacement === p ? 'var(--dm-accent-bg)' : 'var(--dm-btn-bg)') +
+      ';color:var(--dm-text);border-radius:5px;">' + p.charAt(0).toUpperCase() + p.slice(1) + '</button>').join('') + '</div>' +
+    '<div style="display:flex;gap:6px;">' +
+      '<button type="button" data-dm-action="confirm-move-to"' + (!moveDestinationId ? ' disabled' : '') +
+        ' style="flex:1;padding:8px;border-radius:5px;border:1px solid var(--dm-accent-border);background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;">Move here</button>' +
+      '<button type="button" data-dm-action="cancel-move-to" style="padding:8px;border-radius:5px;border:1px solid var(--dm-separator);background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:11px;">Cancel</button></div>' +
+    '<p style="margin:8px 0 0;font-size:10px;color:var(--dm-text-dim);">This moves the real element and preserves its classes. Parent-dependent styling may look different after the move.</p>' +
     '</section>';
 }
 
@@ -10351,7 +10434,7 @@ function render() {
     if (routeEditingBlocked) tabContent = '<div role="status" style="padding:12px;color:var(--dm-text);font-size:12px;">Waiting for the destination page. Editing is paused to protect saved changes. If this persists, reload the page; review and export remain available.</div>' + tabContent;
 
     html = '<div style="display:flex;flex-direction:column;height:100vh;overflow:hidden;position:relative;">' +
-      renderHeader() + renderActionRow() + renderStylePasteOptions() + renderCommentCard() + renderTabs() +
+      renderHeader() + renderActionRow() + renderMoveToPanel() + renderStylePasteOptions() + renderCommentCard() + renderTabs() +
       // Layers pans both axes so deep trees stay readable (rows are
       // max-content wide there — see renderLayersTab); other tabs keep
       // horizontal overflow clipped.
@@ -10592,6 +10675,16 @@ function setupDelegation() {
 
     // Visual Builder preset insertion. Route edits through the existing content
     // script change tracker so MCP sees a real DOM insertion, not just preview HTML.
+    const movePosButton = target.closest<HTMLElement>('[data-dm-move-position]');
+    if (movePosButton && moveSourceId) {
+      const pos = movePosButton.dataset.dmMovePosition;
+      if (pos === 'before' || pos === 'inside' || pos === 'after') {
+        movePlacement = pos;
+        void runInspectorAction(updateMovePreview(operation));
+        render();
+      }
+      return;
+    }
     const builderBtn = target.closest<HTMLElement>('[data-dm-builder-kind]');
     if (builderBtn) {
       builderClassInput = (root.querySelector<HTMLInputElement>('[data-dm-builder-class]')?.value || '').trim();
@@ -10651,6 +10744,16 @@ function setupDelegation() {
         case 'paste-appearance': runInspectorAction(pasteSelectedAppearance(operation)); break;
         case 'hide-style-paste-options': stylePasteOptionsOpen = false; render(); break;
         case 'duplicate': runInspectorAction(domAction('duplicate', operation)); break;
+        case 'move-to': void runInspectorAction(startMoveTo(operation)); break;
+        case 'move-pick-destination':
+          movePickDestination = true;
+          void runInspectorAction(send({type:'SP_SET_INSPECT',on:true},operation).then(res => {
+            if (typeof res.inspecting === 'boolean') inspecting = res.inspecting;
+            render();
+          }));
+          break;
+        case 'confirm-move-to': void runInspectorAction(confirmMoveTo(operation)); break;
+        case 'cancel-move-to': void runInspectorAction(cancelMoveTo(operation)); break;
         case 'delete': runInspectorAction(domAction('delete', operation)); break;
         case 'comment': startComment(); break;
         case 'region-comment': startRegionComment(); break;
