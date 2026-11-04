@@ -6815,8 +6815,8 @@ function renderActionRow(): string {
     // the panel widens (Parent/Child pinned left, Undo/Redo pinned right).
     '<div style="flex:1;"></div>' +
     '<button data-dm-action="toggle-builder" title="Add elements" aria-pressed="' + builderOpen + '" style="' + bs() + (builderOpen ? 'color:var(--dm-accent);background:var(--dm-accent-bg);' : '') + '">' + icon('plus', 14) + '</button>' +
-    '<button data-dm-action="copy-appearance" title="Copy appearance (visual styles only)" aria-label="Copy appearance" style="' + bs() + '">' + icon('paintBucket', 14) + '</button>' +
-    '<button data-dm-action="paste-appearance" title="Paste appearance independently onto selected element" aria-label="Paste appearance" style="' + bs(undefined, !!copiedAppearance) + (!copiedAppearance ? 'opacity:0.35;pointer-events:none;' : '') + '">' + icon('clipboardPaste', 14) + '</button>' +
+    '<button data-dm-action="copy-appearance" title="Copy styles" aria-label="Copy styles" style="' + bs() + '">' + icon('paintBucket', 14) + '</button>' +
+    '<button data-dm-action="paste-appearance" title="Paste selected styles independently" aria-label="Paste styles" style="' + bs(undefined, !!copiedStyles) + (!copiedStyles ? 'opacity:0.35;pointer-events:none;' : '') + '">' + icon('clipboardPaste', 14) + '</button>' +
     '<button data-dm-action="duplicate" title="Duplicate" style="' + bs() + '">' + icon('copy', 14) + '</button>' +
     '<button data-dm-action="delete" title="Remove" style="' + bs('var(--dm-danger)') + '">' + icon('trash', 14) + '</button>' +
     '<button data-dm-action="comment" title="Comment" style="' + bs() + '">' + icon('messageSquare', 14) + '</button>' +
@@ -6979,37 +6979,82 @@ function renderSealedFrameNotice(): string {
     '</div>';
 }
 
-// Clipboard for independent, visual-only appearance transfer.
-let copiedAppearance: Array<{ property: string; value: string }> | null = null;
-let copiedAppearanceFrom = '';
+// Copy styles as independent overrides. The user can choose categories
+// before pasting; shared classes and design tokens remain untouched.
+type StyleCategory = 'appearance' | 'spacing' | 'layout';
+type StyleProperty = { property: string; value: string };
+let copiedStyles: Record<StyleCategory, StyleProperty[]> | null = null;
+let copiedStylesFrom = '';
+let stylePasteOptionsOpen = false;
+let enabledStyleCategories: Record<StyleCategory, boolean> = {
+  appearance: true, spacing: true, layout: false,
+};
 async function copySelectedAppearance(operation = beginInspectorOperation()): Promise<void> {
   operation.assertCurrent();
   const result = await operation.wait(send({ type: 'SP_COPY_APPEARANCE' }, operation));
-  if (!result.ok || !Array.isArray(result.changes)) {
+  const groups = result.changesByGroup;
+  if (!result.ok || !groups || !Array.isArray(groups.appearance) ||
+      !Array.isArray(groups.spacing) || !Array.isArray(groups.layout)) {
     showCaptureToast('error', result.error || 'Select an element first.');
     return;
   }
-  copiedAppearance = result.changes.filter((c: { property: unknown; value: unknown }) =>
+  const safe = (items: StyleProperty[]) => items.filter(c =>
     typeof c.property === 'string' && typeof c.value === 'string');
-  copiedAppearanceFrom = result.tagName || 'element';
-  showCaptureToast('success', 'Appearance copied. Select a target and paste.');
+  copiedStyles = {
+    appearance: safe(groups.appearance), spacing: safe(groups.spacing),
+    layout: safe(groups.layout),
+  };
+  copiedStylesFrom = result.tagName || 'element';
+  stylePasteOptionsOpen = true;
+  showCaptureToast('success', 'Styles copied. Choose categories, then paste.');
   render();
 }
 async function pasteSelectedAppearance(operation = beginInspectorOperation()): Promise<void> {
   operation.assertCurrent();
-  if (!copiedAppearance?.length) { showCaptureToast('error', 'Copy an element\'s appearance first.'); return; }
+  if (!copiedStyles) { showCaptureToast('error', 'Copy styles from an element first.'); return; }
   if (!info?.id || info.tagName.toLowerCase() === 'body') { showCaptureToast('error', 'Select a target element.'); return; }
+  const changes = (Object.keys(enabledStyleCategories) as StyleCategory[])
+    .filter(category => enabledStyleCategories[category])
+    .flatMap(category => copiedStyles![category]);
+  if (!changes.length) {
+    showCaptureToast('error', 'Choose at least one category with styles to paste.');
+    return;
+  }
   const res = await operation.wait(send({
-    type: 'SP_APPLY_STYLES', changes: copiedAppearance, groupLabel: 'Paste appearance (independent)',
+    type: 'SP_APPLY_STYLES', changes, groupLabel: 'Paste styles (independent)',
   }, operation));
-  if (res.error || res.ok === false) { showCaptureToast('error', res.error || 'Could not paste appearance.'); return; }
+  if (res.error || res.ok === false) { showCaptureToast('error', res.error || 'Could not paste styles.'); return; }
   if (res.info) info = res.info;
   if (res.styleChanges) styleChanges = res.styleChanges;
   if (res.domChanges) domChanges = res.domChanges;
   if (res.textChanges) textChanges = res.textChanges;
-  showCaptureToast('success', 'Appearance pasted independently. Undo to revert.');
+  showCaptureToast('success', 'Styles pasted independently. Undo to revert.');
   await refreshChanges(operation);
   render();
+}
+function renderStylePasteOptions(): string {
+  if (!stylePasteOptionsOpen || !copiedStyles) return '';
+  const options: Array<{ key: StyleCategory; title: string; desc: string }> = [
+    { key: 'appearance', title: 'Appearance', desc: 'Typography, colors, shadows' },
+    { key: 'spacing', title: 'Spacing', desc: 'Padding, margin, gaps' },
+    { key: 'layout', title: 'Layout', desc: 'Flex/Grid display and alignment' },
+  ];
+  return '<section aria-label="Paste style options" style="padding:10px 12px;border-bottom:1px solid var(--dm-separator);background:var(--dm-bg-secondary);">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
+    '<strong style="font-size:11px;color:var(--dm-text);">Paste styles</strong>' +
+    '<button type="button" data-dm-action="hide-style-paste-options" title="Hide options" style="background:transparent;border:0;cursor:pointer;color:var(--dm-text-secondary);">' + icon('x', 13) + '</button></div>' +
+    '<p style="margin:0 0 8px;font-size:10px;color:var(--dm-text-dim);">Copied from &lt;' + escapeAttr(copiedStylesFrom) + '&gt;. Choose what to paste independently.</p>' +
+    options.map(opt => {
+      const count = copiedStyles![opt.key].length;
+      return '<label style="display:flex;gap:8px;align-items:center;padding:5px 0;cursor:pointer;">' +
+        '<input type="checkbox" data-dm-style-category="' + opt.key + '"' +
+        (enabledStyleCategories[opt.key] ? ' checked' : '') + (count === 0 ? ' disabled' : '') + '/>' +
+        '<span style="font-size:11px;color:var(--dm-text);">' + opt.title +
+        ' <span style="font-size:10px;color:var(--dm-text-dim);">(' + count + ') · ' + opt.desc + '</span></span></label>';
+    }).join('') +
+    '<p style="margin:6px 0 8px;font-size:10px;color:var(--dm-text-dim);">Width, height, positioning and animations are never copied. Computed spacing values may need responsive adjustments.</p>' +
+    '<button type="button" data-dm-action="paste-appearance" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--dm-accent-border);background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;font-weight:600;">Paste selected styles</button>' +
+    '</section>';
 }
 
 let builderOpen = false;
@@ -10162,7 +10207,7 @@ function render() {
     if (routeEditingBlocked) tabContent = '<div role="status" style="padding:12px;color:var(--dm-text);font-size:12px;">Waiting for the destination page. Editing is paused to protect saved changes. If this persists, reload the page; review and export remain available.</div>' + tabContent;
 
     html = '<div style="display:flex;flex-direction:column;height:100vh;overflow:hidden;position:relative;">' +
-      renderHeader() + renderActionRow() + renderCommentCard() + renderTabs() +
+      renderHeader() + renderActionRow() + renderStylePasteOptions() + renderCommentCard() + renderTabs() +
       // Layers pans both axes so deep trees stay readable (rows are
       // max-content wide there — see renderLayersTab); other tabs keep
       // horizontal overflow clipped.
@@ -10449,6 +10494,7 @@ function setupDelegation() {
         case 'toggle-builder': builderOpen = !builderOpen; tab = 'layers'; render(); if (builderOpen) void runInspectorAction(refreshBuilderClasses(operation)); break;
         case 'copy-appearance': runInspectorAction(copySelectedAppearance(operation)); break;
         case 'paste-appearance': runInspectorAction(pasteSelectedAppearance(operation)); break;
+        case 'hide-style-paste-options': stylePasteOptionsOpen = false; render(); break;
         case 'duplicate': runInspectorAction(domAction('duplicate', operation)); break;
         case 'delete': runInspectorAction(domAction('delete', operation)); break;
         case 'comment': startComment(); break;
@@ -12850,6 +12896,14 @@ function setupDelegation() {
   // Change handler (selects)
   root.addEventListener('change', (e) => {
     const target = e.target as HTMLElement;
+    const styleCategoryInput = target.closest<HTMLInputElement>('[data-dm-style-category]');
+    if (styleCategoryInput) {
+      const category = styleCategoryInput.dataset.dmStyleCategory as StyleCategory;
+      if (category === 'appearance' || category === 'spacing' || category === 'layout') {
+        enabledStyleCategories[category] = styleCategoryInput.checked;
+      }
+      return;
+    }
     const classSelect = target.closest<HTMLSelectElement>('[data-dm-builder-select]');
     if (classSelect) {
       builderClassInput = classSelect.value;
