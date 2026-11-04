@@ -33,17 +33,33 @@ export function previewBuilderPlacement(targetId: string | undefined, position: 
   overlay.style.left = Math.max(0,rect.left) + 'px';
   overlay.style.width = Math.max(40,Math.min(innerWidth,rect.right)-Math.max(0,rect.left)) + 'px';
   if (destination.position === 'inside') {
-    overlay.style.top = Math.max(0,rect.top) + 'px';
-    overlay.style.height = Math.max(32,Math.min(rect.height || 40,innerHeight-Math.max(0,rect.top))) + 'px';
-    overlay.style.border = '2px dashed #2563eb';
-    overlay.style.background = 'rgba(37,99,235,.06)';
+    // Inside appends at the END of the container, not somewhere in its
+    // middle. Show the end of its last child's flow as the insertion guide.
+    const parent = destination.target;
+    const last = parent.lastElementChild;
+    const flow = window.getComputedStyle(parent);
+    const horizontal = flow.display.includes('flex') &&
+      flow.flexDirection.startsWith('row');
+    const lastRect = last?.getBoundingClientRect();
+    if (horizontal && lastRect) {
+      overlay.style.left = Math.max(0,Math.min(innerWidth - 4,lastRect.right)) + 'px';
+      overlay.style.width = '4px';
+      overlay.style.top = Math.max(0,lastRect.top) + 'px';
+      overlay.style.height = Math.max(32,Math.min(lastRect.height || 40,innerHeight-Math.max(0,lastRect.top))) + 'px';
+      overlay.style.background = '#2563eb';
+    } else {
+      const insertionY = lastRect ? lastRect.bottom : rect.top;
+      overlay.style.top = Math.max(0,Math.min(innerHeight - 4,insertionY)) + 'px';
+      overlay.style.height = '4px';
+      overlay.style.background = '#2563eb';
+    }
   } else {
     overlay.style.top = Math.max(0,Math.min(innerHeight-4,destination.position === 'before'?rect.top:rect.bottom)) + 'px';
     overlay.style.height = '4px';
     overlay.style.background = '#2563eb';
   }
   const label = document.createElement('span');
-  label.textContent = 'Insert ' + destination.position;
+  label.textContent = 'Insert ' + destination.position + ' ' + destination.target.tagName.toLowerCase();
   label.style.cssText = 'position:absolute;left:0;bottom:100%;padding:3px 7px;border-radius:4px 4px 0 0;background:#2563eb;color:white;white-space:nowrap;';
   overlay.appendChild(label);
   document.documentElement.appendChild(overlay);
