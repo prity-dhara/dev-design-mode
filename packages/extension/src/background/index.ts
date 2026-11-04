@@ -551,6 +551,10 @@ function dispatchPanelMessage(msg: any, sender: chrome.runtime.MessageSender, se
     forwardToPinnedTab({ type: 'APPLY_PARENT_STYLE', property: msg.property, value: msg.value }, sendResponse);
     return true;
   }
+  if (msg.type === 'SP_COPY_APPEARANCE') {
+    forwardToPinnedTab({ type: 'COPY_APPEARANCE' }, sendResponse);
+    return true;
+  }
   if (msg.type === 'SP_GET_SITE_CLASSES') {
     forwardToPinnedTab({ type: 'GET_SITE_CLASSES' }, sendResponse);
     return true;
