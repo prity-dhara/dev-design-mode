@@ -68,6 +68,7 @@ try {
   // Copy sidepanel HTML
   mkdirSync(resolve(__dirname, output, 'sidepanel'), { recursive: true });
   cpSync(resolve(__dirname, 'src/sidepanel/index.html'), resolve(__dirname, output, 'sidepanel/index.html'));
+  cpSync(resolve(__dirname, 'src/sidepanel/builder-reveal.js'), resolve(__dirname, output, 'sidepanel/builder-reveal.js'));
 
   // Copy assets
   if (existsSync(resolve(__dirname, 'public/assets'))) {
