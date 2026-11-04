@@ -551,6 +551,10 @@ function dispatchPanelMessage(msg: any, sender: chrome.runtime.MessageSender, se
     forwardToPinnedTab({ type: 'APPLY_PARENT_STYLE', property: msg.property, value: msg.value }, sendResponse);
     return true;
   }
+  if (msg.type === 'SP_ADD_BUILDER_ELEMENT') {
+    forwardToPinnedTab({ type: 'ADD_BUILDER_ELEMENT', kind: msg.kind, targetId: msg.targetId, className: msg.className }, sendResponse);
+    return true;
+  }
   if (msg.type === 'SP_DOM_ACTION') {
     forwardToPinnedTab({ type: 'DOM_ACTION', action: msg.action, elementId: msg.elementId, elementIds: msg.elementIds }, sendResponse);
     return true;
