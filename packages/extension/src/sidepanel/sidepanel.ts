@@ -6777,7 +6777,7 @@ function renderMcpStatus(): string {
 function renderHeader(): string {
   const domain = pinnedDomain ? '<span style="font-size:11px;color:var(--dm-text-secondary);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeAttr(pinnedDomain) + '</span>' : '';
   const themeIcon = resolvedTheme === 'dark' ? 'sun' : 'moon';
-  return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dm-separator-strong);flex-shrink:0;background:var(--dm-bg);position:sticky;top:0;z-index:10;">' +
+  return '<div class="dm-panel-header" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dm-separator-strong);flex-shrink:0;background:var(--dm-bg);position:sticky;top:0;z-index:10;">' +
     domain + (IS_SAFARI ? '<span title="Safari Web Inspector" style="font-size:10px;color:var(--dm-text-dim);">v' + APP_VERSION + ' · Safari</span>' : '') + '<div style="flex:1;"></div>' + renderMcpStatus() +
     '<button data-dm-action="toggle-theme" title="Toggle theme" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon(themeIcon as keyof typeof icons, 15) + '</button>' +
     '<button data-dm-action="contribute" title="Contribute" aria-label="Open contribute panel" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('heartHandshake', 15) + '</button>' +
@@ -6807,7 +6807,7 @@ function renderActionRow(): string {
   };
   const inspectTitle = commentMode ? 'Inspection paused while commenting' : inspecting ? 'Stop inspecting' : 'Start inspecting';
   const inspectStyle = bs(undefined, true) + (inspecting ? 'color:var(--dm-accent);background:var(--dm-accent-bg);border-color:var(--dm-accent-border);' : '');
-  return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:3px;padding:6px 12px;border-bottom:1px solid var(--dm-separator);flex-shrink:0;">' +
+  return '<div class="dm-tools-row" style="display:flex;flex-wrap:wrap;align-items:center;gap:3px;padding:6px 12px;border-bottom:1px solid var(--dm-separator);flex-shrink:0;">' +
     '<button type="button" data-dm-action="toggle-inspect" title="' + inspectTitle + '" aria-label="Inspect" aria-pressed="' + inspecting + '"' + (commentMode ? ' disabled' : '') + ' style="' + inspectStyle + '">' + icon('crosshair', 14) + '</button>' +
     '<button data-dm-action="select-parent" title="Parent" style="' + bs() + '">' + icon('arrowUp', 14) + '</button>' +
     '<button data-dm-action="select-child" title="Child" style="' + bs() + '">' + icon('arrowDown', 14) + '</button>' +
@@ -6861,7 +6861,7 @@ function renderTabs(): string {
     { key: 'design', label: 'Design', iconName: 'sliders' },
     { key: 'changes', label: 'Changes', iconName: 'sparkles', badge: siteChangeCount() },
   ];
-  return '<div style="display:flex;padding:4px 12px;gap:2px;border-bottom:1px solid var(--dm-separator);flex-shrink:0;">' +
+  return '<div class="dm-navigation" role="tablist" aria-label="Editor views" style="display:flex;padding:4px 12px;gap:2px;border-bottom:1px solid var(--dm-separator);flex-shrink:0;">' +
     tabs.map(tt => {
       const a = tt.key === tab;
       const badgeHtml = tt.badge && tt.badge > 0 ? ' <span style="font-size:8px;background:var(--dm-success-bg);color:var(--dm-success);border-radius:8px;padding:1px 4px;">' + tt.badge + '</span>' : '';
