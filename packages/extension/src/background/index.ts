@@ -559,8 +559,16 @@ function dispatchPanelMessage(msg: any, sender: chrome.runtime.MessageSender, se
     forwardToPinnedTab({ type: 'GET_SITE_CLASSES' }, sendResponse);
     return true;
   }
+  if (msg.type === 'SP_PREVIEW_BUILDER_PLACEMENT') {
+    forwardToPinnedTab({ type:'PREVIEW_BUILDER_PLACEMENT', targetId:msg.targetId, position:msg.position },sendResponse);
+    return true;
+  }
+  if (msg.type === 'SP_CLEAR_BUILDER_PREVIEW') {
+    forwardToPinnedTab({ type:'CLEAR_BUILDER_PREVIEW' },sendResponse);
+    return true;
+  }
   if (msg.type === 'SP_ADD_BUILDER_ELEMENT') {
-    forwardToPinnedTab({ type: 'ADD_BUILDER_ELEMENT', kind: msg.kind, targetId: msg.targetId, className: msg.className }, sendResponse);
+    forwardToPinnedTab({ type: 'ADD_BUILDER_ELEMENT', kind: msg.kind, targetId: msg.targetId, className: msg.className, position: msg.position }, sendResponse);
     return true;
   }
   if (msg.type === 'SP_DOM_ACTION') {
