@@ -7061,6 +7061,12 @@ let builderOpen = false;
 let builderInsertPosition: 'before' | 'inside' | 'after' = 'after';
 let pendingBuilderKind: string | null = null;
 let pendingBuilderTarget: string | undefined;
+let builderWrapperId: string | undefined;
+let builderTargetMode: 'wrapper' | 'selected' = 'selected';
+function builderTargetId(): string | undefined {
+  return builderTargetMode === 'wrapper' && builderWrapperId ? builderWrapperId : info?.id;
+}
+
 async function buildInsideSelectedParent(operation = beginInspectorOperation()) {
   operation.assertCurrent();
   const result = await operation.wait(send({ type: 'SP_SELECT_PARENT' },operation));
@@ -7070,6 +7076,8 @@ async function buildInsideSelectedParent(operation = beginInspectorOperation()) 
   if (result.payload || result.info) info = result.payload || result.info;
   // Parent is now the selected element, and next insert goes inside it.
   builderInsertPosition = 'inside';
+  builderWrapperId = info?.id;
+  builderTargetMode = 'wrapper';
   pendingBuilderKind = null;
   await operation.wait(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation));
   render();
@@ -7093,7 +7101,7 @@ async function makeSelectedWrapperHorizontal(operation = beginInspectorOperation
 async function previewBuilderKind(kind: string, operation = beginInspectorOperation()) {
   operation.assertCurrent();
   pendingBuilderKind = kind;
-  pendingBuilderTarget = info?.id;
+  pendingBuilderTarget = builderTargetId();
   const result = await send({
     type: 'SP_PREVIEW_BUILDER_PLACEMENT', targetId: pendingBuilderTarget,
     position: builderInsertPosition,
@@ -7118,11 +7126,20 @@ async function confirmBuilderInsert(operation = beginInspectorOperation()) {
     return;
   }
   pendingBuilderKind = null;
+  const previousTarget = pendingBuilderTarget;
   pendingBuilderTarget = undefined;
   if (res.info) info = res.info;
-  // Keep Add Elements open. Newly inserted wrappers become the current target
-  // so the next heading/container can be nested without revisiting Layers.
-  builderInsertPosition = ['section', 'container', 'div', 'grid', 'card'].includes(kind) ? 'inside' : 'after';
+  // Preserve the parent wrapper when adding headings, text, and buttons.
+  // Future inserts become siblings inside it, never children of an H2/P/Button.
+  if (['section','container','div','grid','card'].includes(kind)) {
+    builderWrapperId = info?.id;
+  } else if (res.parentId) {
+    builderWrapperId = res.parentId;
+  } else {
+    builderWrapperId = previousTarget;
+  }
+  builderTargetMode = builderWrapperId ? 'wrapper' : 'selected';
+  builderInsertPosition = builderWrapperId ? 'inside' : 'after';
   builderClassInput = '';
   tab = 'layers';
   await refreshDomTree(operation);
@@ -7167,7 +7184,12 @@ function renderBuilderPanel(): string {
     '<span style="font-size:10px;color:var(--dm-text);">Selected: <b>' + escapeAttr(info?.tagName?.toLowerCase() || 'page') + '</b>' +
       (info?.className ? ' · ' + escapeAttr(info.className.slice(0,42)) : '') + '</span>' +
     '<button type="button" data-dm-action="builder-open-design" style="background:transparent;border:0;color:var(--dm-accent);font-size:10px;cursor:pointer;white-space:nowrap;">Style selected</button></div>' +
-    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Reuse a class from this page, or leave blank to use the element\'s global style. Choose an element to preview its location, then click Insert here. The Add panel stays open for the next element.</div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Add a Section → Div → Heading → Paragraph → Button. New elements stay inside the same wrapper automatically.</div>' +
+    '<div style="display:flex;gap:5px;align-items:center;margin-bottom:8px;">' +
+    '<span style="flex:1;font-size:10px;color:var(--dm-text-secondary);">Insert target: <b>' +
+      (builderTargetMode === 'wrapper' && builderWrapperId ? 'Current wrapper' : 'Selected element') +
+    '</b></span>' +
+    '<button type="button" data-dm-action="builder-target-selected" style="padding:5px;border:1px solid var(--dm-separator);background:var(--dm-btn-bg);color:var(--dm-text);border-radius:5px;font-size:10px;cursor:pointer;">Use selected</button></div>' +
     '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">Search existing classes or create a new one</label>' +
     '<input data-dm-builder-class list="dm-builder-site-classes" aria-label="Element CSS class" value="' + escapeAttr(builderClassInput) + '" placeholder="Search classes..." style="box-sizing:border-box;width:100%;margin-bottom:6px;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;"/>' +
     '<datalist id="dm-builder-site-classes">' + suggestions + '</datalist>' +
@@ -10573,12 +10595,20 @@ function setupDelegation() {
         }
         case 'toggle-builder':
           builderOpen = !builderOpen; tab = 'layers'; render();
-          if (builderOpen) void runInspectorAction(refreshBuilderClasses(operation));
+          if (builderOpen) { builderTargetMode = 'selected'; builderWrapperId = undefined; void runInspectorAction(refreshBuilderClasses(operation)); }
           else { pendingBuilderKind = null; void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation)); }
           break;
         case 'confirm-builder-insert': void runInspectorAction(confirmBuilderInsert(operation)); break;
         case 'builder-open-design': tab = 'design'; render(); break;
         case 'builder-select-parent': void runInspectorAction(buildInsideSelectedParent(operation)); break;
+        case 'builder-target-selected':
+          builderTargetMode = 'selected';
+          builderWrapperId = undefined;
+          pendingBuilderKind = null;
+          builderInsertPosition = 'after';
+          render();
+          void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation));
+          break;
         case 'builder-horizontal': void runInspectorAction(makeSelectedWrapperHorizontal(operation)); break;
         case 'cancel-builder-insert':
           pendingBuilderKind = null; render();
