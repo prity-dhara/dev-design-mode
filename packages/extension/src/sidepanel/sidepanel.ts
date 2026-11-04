@@ -902,7 +902,7 @@ port.onMessage.addListener((msg) => {
     return;
   }
   if (IS_SAFARI && msg.type === 'INSPECTOR_ERROR') {
-    inspectorError = String(msg.error || 'Connection lost. Reopen the Design Mode tab.');
+    inspectorError = String(msg.error || 'Connection lost. Reopen the Dev Agent tab.');
     render();
     return;
   }
@@ -997,7 +997,7 @@ function savePipSizeDebounced() {
 function beginFirefoxDock() {
   if (myTabId == null) return;
   if (captureToastTimer) clearTimeout(captureToastTimer);
-  captureToast = { kind: 'success', text: 'In the page window, click the Design Mode toolbar button (or use its shortcut) to finish docking. This editor stays open until the sidebar is ready.' };
+  captureToast = { kind: 'success', text: 'In the page window, click the Dev Agent toolbar button (or use its shortcut) to finish docking. This editor stays open until the sidebar is ready.' };
   render();
   void send({ type: 'SP_FIREFOX_DOCK_BEGIN' }).then(result => {
     if (!result.ok) showCaptureToast('error', result.error || 'Could not prepare the sidebar. This editor is still open.');
@@ -2381,6 +2381,35 @@ browser.runtime.onMessage.addListener((msg, sender) => {
     }
     const selectedElementChanged = info?.id !== msg.payload?.id;
     info = msg.payload; hoverInfo = null; commentMode = false;
+    if (movePickDestination && selectedElementChanged && info?.id) {
+      movePickDestination = false;
+      moveDestinationId = info.id;
+      inspecting = false;
+      void runInspectorAction(send({ type:'SP_SET_INSPECT', on:false }));
+      void runInspectorAction(updateMovePreview());
+    }
+    if (selectedElementChanged && builderOpen) {
+      // A real selection supersedes any previously remembered parent wrapper.
+      builderTargetMode = 'selected';
+      builderWrapperId = undefined;
+      if (builderPickingTarget) {
+        builderPickingTarget = false;
+        builderInsertPosition = 'after';
+        pendingBuilderTarget = info?.id;
+        // Pick is a one-shot action; stop inspection so subsequent clicks
+        // don't unexpectedly reset the chosen insertion reference.
+        void runInspectorAction(send({ type: 'SP_SET_INSPECT', on: false }));
+        inspecting = false;
+        if (pendingBuilderKind) {
+          const kind = pendingBuilderKind;
+          void runInspectorAction(previewBuilderKind(kind));
+        }
+      } else {
+        pendingBuilderKind = null;
+        pendingBuilderTarget = undefined;
+        void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' }));
+      }
+    }
     hydrateLayoutGuidesFromPayload(info);
     contrastSettingsOpen = false;
     tokenBadgeMenuProp = null;
@@ -6775,27 +6804,29 @@ function renderMcpStatus(): string {
 }
 
 function renderHeader(): string {
-  const domain = pinnedDomain ? '<span style="font-size:11px;color:var(--dm-text-secondary);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeAttr(pinnedDomain) + '</span>' : '';
+  const domain = pinnedDomain ? '<span style="font-size:11px;color:var(--dm-text-secondary);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeAttr(pinnedDomain) + '">' + escapeAttr(pinnedDomain) + '</span>' : '';
   const themeIcon = resolvedTheme === 'dark' ? 'sun' : 'moon';
-  return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dm-separator-strong);flex-shrink:0;background:var(--dm-bg);position:sticky;top:0;z-index:10;">' +
-    domain + (IS_SAFARI ? '<span title="Safari Web Inspector" style="font-size:10px;color:var(--dm-text-dim);">v' + APP_VERSION + ' · Safari</span>' : '') + '<div style="flex:1;"></div>' + renderMcpStatus() +
-    '<button data-dm-action="toggle-theme" title="Toggle theme" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon(themeIcon as keyof typeof icons, 15) + '</button>' +
-    '<button data-dm-action="contribute" title="Contribute" aria-label="Open contribute panel" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('heartHandshake', 15) + '</button>' +
-    '<button data-dm-action="help" title="Help" aria-label="Open help" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('helpCircle', 15) + '</button>' +
-    '<button data-dm-action="settings" title="Settings" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('settings', 16) + '</button>' +
-    // Docking controls (pop-out / pin-on-top / dock-back) sit last — they
-    // manage the panel window itself, not the page, so they read as a
-    // separate group after Settings. Safari remains Inspector-only.
-    (!launchCapabilities.floating ? '' : isPip
-      ? '<button data-dm-action="pip-unpin" title="Pinned on top — click to unpin back to the floating window" aria-label="Pinned on top — click to unpin back to the floating window" style="background:var(--dm-accent-bg);border:1px solid var(--dm-accent-border);border-radius:5px;color:var(--dm-accent);cursor:pointer;display:flex;padding:4px;">' + icon('pictureInPicture2', 15) + '</button>' +
-        '<button data-dm-action="pip-dock-back" title="' + (IS_FIREFOX ? 'Focus the page, then click Design Mode there to finish docking' : 'Dock back to the side panel') + '" aria-label="' + (IS_FIREFOX ? 'Prepare docking; finish from the page toolbar' : 'Dock back to side panel') + '" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('panelRight', 15) + '</button>'
-      : isPopout
-        ? (pipAvailable
-            ? '<button data-dm-action="pip-pin" title="Pin on top of every window" aria-label="Pin on top of every window" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('pictureInPicture2', 15) + '</button>'
-            : '') +
-          '<button data-dm-action="dock-back" title="' + (IS_FIREFOX ? 'Focus the page, then click Design Mode there to finish docking' : 'Dock back to the side panel') + '" aria-label="' + (IS_FIREFOX ? 'Prepare docking; finish from the page toolbar' : 'Dock back to side panel') + '" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('panelRight', 15) + '</button>'
-        : '<button data-dm-action="pop-out" title="Pop out into a floating window" aria-label="Pop out into a floating window" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('externalLink', 15) + '</button>') +
-    '</div>';
+  const iconButton = (action: string, title: string, iconName: keyof typeof icons) =>
+    '<button class="dm-header-icon" type="button" data-dm-action="' + action + '" title="' + title + '" aria-label="' + title + '">' + icon(iconName, 15) + '</button>';
+  const menuButton = (action: string, title: string, iconName: keyof typeof icons) =>
+    '<button type="button" class="dm-more-menu-item" data-dm-action="' + action + '">' + icon(iconName, 15) + '<span>' + title + '</span></button>';
+  const floatingActions = !launchCapabilities.floating ? '' : isPip
+    ? menuButton('pip-unpin', 'Unpin floating window', 'pictureInPicture2') +
+      menuButton('pip-dock-back', 'Dock back to side panel', 'panelRight')
+    : isPopout
+      ? (pipAvailable ? menuButton('pip-pin', 'Pin window on top', 'pictureInPicture2') : '') +
+        menuButton('dock-back', 'Dock back to side panel', 'panelRight')
+      : menuButton('pop-out', 'Open floating window', 'externalLink');
+  return '<div class="dm-panel-header" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dm-separator-strong);flex-shrink:0;background:var(--dm-bg);position:sticky;top:0;z-index:10;">' +
+    domain + (IS_SAFARI ? '<span title="Safari Web Inspector" style="font-size:10px;color:var(--dm-text-dim);">v' + APP_VERSION + ' · Safari</span>' : '') +
+    '<div style="flex:1;"></div>' + renderMcpStatus() +
+    iconButton('toggle-theme', 'Toggle theme', themeIcon as keyof typeof icons) +
+    iconButton('settings', 'Settings', 'settings') +
+    '<details class="dm-more-dropdown dm-header-more"><summary title="More options" aria-label="More options">' + icon('ellipsis', 17) + '</summary><div class="dm-more-menu">' +
+    floatingActions +
+    menuButton('help', 'Help', 'helpCircle') +
+    menuButton('contribute', 'Contribute', 'heartHandshake') +
+    '</div></details></div>';
 }
 
 function renderActionRow(): string {
@@ -6807,23 +6838,32 @@ function renderActionRow(): string {
   };
   const inspectTitle = commentMode ? 'Inspection paused while commenting' : inspecting ? 'Stop inspecting' : 'Start inspecting';
   const inspectStyle = bs(undefined, true) + (inspecting ? 'color:var(--dm-accent);background:var(--dm-accent-bg);border-color:var(--dm-accent-border);' : '');
-  return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:3px;padding:6px 12px;border-bottom:1px solid var(--dm-separator);flex-shrink:0;">' +
-    '<button type="button" data-dm-action="toggle-inspect" title="' + inspectTitle + '" aria-label="Inspect" aria-pressed="' + inspecting + '"' + (commentMode ? ' disabled' : '') + ' style="' + inspectStyle + '">' + icon('crosshair', 14) + '</button>' +
-    '<button data-dm-action="select-parent" title="Parent" style="' + bs() + '">' + icon('arrowUp', 14) + '</button>' +
-    '<button data-dm-action="select-child" title="Child" style="' + bs() + '">' + icon('arrowDown', 14) + '</button>' +
-    // Spacer + the spacer before Undo flank the middle cluster, centering it as
-    // the panel widens (Parent/Child pinned left, Undo/Redo pinned right).
-    '<div style="flex:1;"></div>' +
-    '<button data-dm-action="duplicate" title="Duplicate" style="' + bs() + '">' + icon('copy', 14) + '</button>' +
-    '<button data-dm-action="delete" title="Remove" style="' + bs('var(--dm-danger)') + '">' + icon('trash', 14) + '</button>' +
-    '<button data-dm-action="comment" title="Comment" style="' + bs() + '">' + icon('messageSquare', 14) + '</button>' +
-    '<button data-dm-action="region-comment" title="Annotate" style="' + bs(undefined, true) + ';' + (awaitingRegionDraw ? 'color:var(--dm-accent);background:var(--dm-accent-bg);border-color:var(--dm-accent-border);' : '') + '">' + icon('squareDashedMousePointer', 14) + '</button>' +
-    '<button data-dm-action="screenshot" title="Screenshot" style="' + bs(undefined, true) + '">' + icon('camera', 14) + '</button>' +
-    '<div style="width:1px;height:16px;background:var(--dm-separator-strong);margin:0 2px;"></div>' +
-    '<button data-dm-action="open-tokens" title="Design system" style="' + bs(undefined, true) + ';' + (tokensOpen ? 'color:var(--dm-accent);background:var(--dm-accent-bg);border-color:var(--dm-accent-border);' : '') + '">' + icon('swatchBook', 14) + '</button>' +
-    '<div style="flex:1;"></div>' +
-    '<button data-dm-action="undo" title="Undo (Ctrl+Z)" style="' + bs(undefined, true) + '">' + icon('undo', 14) + '</button>' +
-    '<button data-dm-action="redo" title="Redo (Ctrl+Shift+Z)" style="' + bs(undefined, true) + ';transform:scaleX(-1);">' + icon('undo', 14) + '</button></div>';
+  const toolButton = (action: string, title: string, iconName: keyof typeof icons, style: string, disabled = false) =>
+    '<button type="button" class="dm-toolbar-button" data-dm-action="' + action + '" title="' + title + '" aria-label="' + title + '"' +
+    (disabled ? ' disabled' : '') + ' style="' + style + '">' + icon(iconName, 14) + '</button>';
+  const menuButton = (action: string, title: string, iconName: keyof typeof icons, disabled = false) =>
+    '<button type="button" class="dm-more-menu-item" data-dm-action="' + action + '"' +
+    (disabled ? ' disabled' : '') + '>' + icon(iconName, 15) + '<span>' + title + '</span></button>';
+  return '<div class="dm-tools-row" style="display:flex;align-items:center;gap:4px;padding:7px 10px;border-bottom:1px solid var(--dm-separator);flex-shrink:0;">' +
+    '<div class="dm-toolbar-primary">' +
+    toolButton('toggle-inspect', inspectTitle, 'crosshair', inspectStyle, commentMode) +
+    toolButton('select-parent', 'Select parent', 'arrowUp', bs(), dis) +
+    toolButton('select-child', 'Select child', 'arrowDown', bs(), dis) +
+    toolButton('toggle-builder', 'Add elements', 'plus', bs(undefined, true) + (builderOpen ? 'color:var(--dm-accent);background:var(--dm-accent-bg);border-color:var(--dm-accent-border);' : '')) +
+    toolButton('duplicate', 'Duplicate', 'copy', bs(), dis) +
+    toolButton('delete', 'Remove', 'trash', bs('var(--dm-danger)'), dis) +
+    toolButton('undo', 'Undo (Ctrl+Z)', 'undo', bs(undefined, true)) +
+    toolButton('redo', 'Redo (Ctrl+Shift+Z)', 'undo', bs(undefined, true) + ';transform:scaleX(-1);') +
+    '</div>' +
+    '<details class="dm-more-dropdown dm-toolbar-more"><summary title="More editing tools" aria-label="More editing tools">' + icon('ellipsis', 17) + '</summary><div class="dm-more-menu">' +
+    menuButton('move-to', 'Move element', 'move', dis) +
+    menuButton('copy-appearance', 'Copy appearance', 'paintBucket', dis) +
+    menuButton('paste-appearance', 'Paste appearance', 'clipboardPaste', !copiedStyles) +
+    menuButton('comment', 'Comment', 'messageSquare', dis) +
+    menuButton('region-comment', 'Annotate region', 'squareDashedMousePointer') +
+    menuButton('screenshot', 'Screenshot', 'camera') +
+    menuButton('open-tokens', 'Design system', 'swatchBook') +
+    '</div></details></div>';
 }
 
 function renderCommentCard(): string {
@@ -6974,6 +7014,335 @@ function renderSealedFrameNotice(): string {
     '<div style="font-size:11px;line-height:1.55;color:var(--dm-text-dim);max-width:280px;">You can still inspect and edit the <b>wrapper</b> HTML (the outer document). To reach the inner content, open the artifact’s own HTML file directly.</div>' +
     '<button data-dm-action="inspect-wrapper" style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--dm-btn-bg);border:1px solid var(--dm-btn-border);border-radius:6px;color:var(--dm-text-secondary);cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;">' + icon('code', 13) + ' Inspect wrapper HTML</button>' +
     '</div>';
+}
+
+// Copy styles as independent overrides. The user can choose categories
+// before pasting; shared classes and design tokens remain untouched.
+type StyleCategory = 'appearance' | 'spacing' | 'layout';
+type StyleProperty = { property: string; value: string };
+let copiedStyles: Record<StyleCategory, StyleProperty[]> | null = null;
+let copiedStylesFrom = '';
+let stylePasteOptionsOpen = false;
+let enabledStyleCategories: Record<StyleCategory, boolean> = {
+  appearance: true, spacing: true, layout: false,
+};
+async function copySelectedAppearance(operation = beginInspectorOperation()): Promise<void> {
+  operation.assertCurrent();
+  const result = await operation.wait(send({ type: 'SP_COPY_APPEARANCE' }, operation));
+  const groups = result.changesByGroup;
+  if (!result.ok || !groups || !Array.isArray(groups.appearance) ||
+      !Array.isArray(groups.spacing) || !Array.isArray(groups.layout)) {
+    showCaptureToast('error', result.error || 'Select an element first.');
+    return;
+  }
+  const safe = (items: StyleProperty[]) => items.filter(c =>
+    typeof c.property === 'string' && typeof c.value === 'string');
+  copiedStyles = {
+    appearance: safe(groups.appearance), spacing: safe(groups.spacing),
+    layout: safe(groups.layout),
+  };
+  copiedStylesFrom = result.tagName || 'element';
+  stylePasteOptionsOpen = true;
+  showCaptureToast('success', 'Styles copied. Choose categories, then paste.');
+  render();
+}
+async function pasteSelectedAppearance(operation = beginInspectorOperation()): Promise<void> {
+  operation.assertCurrent();
+  if (!copiedStyles) { showCaptureToast('error', 'Copy styles from an element first.'); return; }
+  if (!info?.id || info.tagName.toLowerCase() === 'body') { showCaptureToast('error', 'Select a target element.'); return; }
+  const changes = (Object.keys(enabledStyleCategories) as StyleCategory[])
+    .filter(category => enabledStyleCategories[category])
+    .flatMap(category => copiedStyles![category]);
+  if (!changes.length) {
+    showCaptureToast('error', 'Choose at least one category with styles to paste.');
+    return;
+  }
+  const res = await operation.wait(send({
+    type: 'SP_APPLY_STYLES', changes, groupLabel: 'Paste styles (independent)',
+  }, operation));
+  if (res.error || res.ok === false) { showCaptureToast('error', res.error || 'Could not paste styles.'); return; }
+  if (res.info) info = res.info;
+  if (res.styleChanges) styleChanges = res.styleChanges;
+  if (res.domChanges) domChanges = res.domChanges;
+  if (res.textChanges) textChanges = res.textChanges;
+  showCaptureToast('success', 'Styles pasted independently. Undo to revert.');
+  await refreshChanges(operation);
+  render();
+}
+function renderStylePasteOptions(): string {
+  if (!stylePasteOptionsOpen || !copiedStyles) return '';
+  const options: Array<{ key: StyleCategory; title: string; desc: string }> = [
+    { key: 'appearance', title: 'Appearance', desc: 'Typography, colors, shadows' },
+    { key: 'spacing', title: 'Spacing', desc: 'Padding, margin, gaps' },
+    { key: 'layout', title: 'Layout', desc: 'Flex/Grid display and alignment' },
+  ];
+  return '<section aria-label="Paste style options" style="padding:10px 12px;border-bottom:1px solid var(--dm-separator);background:var(--dm-bg-secondary);">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
+    '<strong style="font-size:11px;color:var(--dm-text);">Paste styles</strong>' +
+    '<button type="button" data-dm-action="hide-style-paste-options" title="Hide options" style="background:transparent;border:0;cursor:pointer;color:var(--dm-text-secondary);">' + icon('x', 13) + '</button></div>' +
+    '<p style="margin:0 0 8px;font-size:10px;color:var(--dm-text-dim);">Copied from &lt;' + escapeAttr(copiedStylesFrom) + '&gt;. Choose what to paste independently.</p>' +
+    options.map(opt => {
+      const count = copiedStyles![opt.key].length;
+      return '<label style="display:flex;gap:8px;align-items:center;padding:5px 0;cursor:pointer;">' +
+        '<input type="checkbox" data-dm-style-category="' + opt.key + '"' +
+        (enabledStyleCategories[opt.key] ? ' checked' : '') + (count === 0 ? ' disabled' : '') + '/>' +
+        '<span style="font-size:11px;color:var(--dm-text);">' + opt.title +
+        ' <span style="font-size:10px;color:var(--dm-text-dim);">(' + count + ') · ' + opt.desc + '</span></span></label>';
+    }).join('') +
+    '<p style="margin:6px 0 8px;font-size:10px;color:var(--dm-text-dim);">Width, height, positioning and animations are never copied. Computed spacing values may need responsive adjustments.</p>' +
+    '<button type="button" data-dm-action="paste-appearance" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--dm-accent-border);background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;font-weight:600;">Paste selected styles</button>' +
+    '</section>';
+}
+
+// Move-to placement keeps the actual source node and edits DOM hierarchy,
+ // never its left/top CSS offset.
+let moveSourceId: string | null = null;
+let moveDestinationId: string | null = null;
+let movePickDestination = false;
+let movePlacement: 'before' | 'inside' | 'after' = 'after';
+async function updateMovePreview(operation = beginInspectorOperation()) {
+  if (!moveSourceId || !moveDestinationId) return;
+  const result = await send({ type:'SP_PREVIEW_MOVE_PLACEMENT', sourceId:moveSourceId,
+    targetId:moveDestinationId, position:movePlacement }, operation);
+  if (!result.ok) showCaptureToast('error', result.error || 'Invalid move location.');
+}
+async function startMoveTo(operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  if (!info?.id || ['body','html'].includes(info.tagName.toLowerCase())) {
+    showCaptureToast('error','Select a page element to move.'); return;
+  }
+  moveSourceId = info.id;
+  moveDestinationId = null;
+  movePlacement = 'after';
+  movePickDestination = true;
+  const res = await send({ type:'SP_SET_INSPECT', on:true },operation);
+  if (typeof res.inspecting === 'boolean') inspecting = res.inspecting;
+  showCaptureToast('success','Now click the destination element on the page.');
+  render();
+}
+async function restoreSelectionAfterMove(operation = beginInspectorOperation()) {
+  // The destination picker temporarily disables inspection after one click.
+  // Restore it when the move completes or is cancelled so the canvas stays
+  // clickable. Clear the placement line independently of the selection box.
+  await send({ type: 'SP_CLEAR_BUILDER_PREVIEW' }, operation);
+  const result = await send({ type: 'SP_SET_INSPECT', on: true }, operation);
+  if (typeof result.inspecting === 'boolean') inspecting = result.inspecting;
+}
+
+async function cancelMoveTo(operation = beginInspectorOperation()) {
+  moveSourceId = null;
+  moveDestinationId = null;
+  movePickDestination = false;
+  await restoreSelectionAfterMove(operation);
+  render();
+}
+async function confirmMoveTo(operation = beginInspectorOperation()) {
+  if (!moveSourceId || !moveDestinationId) return;
+  const preview = await send({type:'SP_PREVIEW_MOVE_PLACEMENT',
+    sourceId:moveSourceId, targetId:moveDestinationId, position:movePlacement},operation);
+  if (!preview.ok) { showCaptureToast('error', preview.error || 'Invalid destination.'); return; }
+  const res = await send({ type:'SP_REORDER_LAYER', sourceId:moveSourceId,
+    targetId:moveDestinationId, position:movePlacement },operation);
+  if (res.error || res.ok === false) {
+    showCaptureToast('error',res.error || 'Could not move the element.'); return;
+  }
+  if (res.info) info = res.info;
+  if (res.domChanges) domChanges = res.domChanges;
+  undoCount = res.undoCount ?? undoCount;
+  redoCount = res.redoCount ?? redoCount;
+  moveSourceId = null; moveDestinationId = null; movePickDestination = false;
+  await restoreSelectionAfterMove(operation);
+  await refreshDomTree(operation); await refreshChanges(operation);
+  showCaptureToast('success','Element moved. Select another element or Undo to restore its position.');
+  render();
+}
+function renderMoveToPanel(): string {
+  if (!moveSourceId) return '';
+  const positions: Array<'before'|'inside'|'after'> = ['before','inside','after'];
+  return '<section aria-label="Move element" style="padding:10px 12px;border-bottom:1px solid var(--dm-separator);">' +
+    '<strong style="font-size:12px;color:var(--dm-text);">Move element</strong>' +
+    '<p style="font-size:10px;color:var(--dm-text-secondary);margin:7px 0;">' +
+      (movePickDestination ? 'Click a destination on the page.' :
+       moveDestinationId ? 'Destination selected. Preview the location and confirm.' :
+       'Choose a destination on the page.') + '</p>' +
+    '<button type="button" data-dm-action="move-pick-destination" style="padding:8px;width:100%;border:1px solid var(--dm-accent-border);border-radius:5px;background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;">Pick destination on page</button>' +
+    '<div style="display:flex;gap:5px;margin:8px 0;">' + positions.map(p =>
+      '<button type="button" data-dm-move-position="' + p + '" style="flex:1;padding:7px 4px;font-size:10px;cursor:pointer;border:1px solid ' +
+      (movePlacement === p ? 'var(--dm-accent-border)' : 'var(--dm-separator)') +
+      ';background:' + (movePlacement === p ? 'var(--dm-accent-bg)' : 'var(--dm-btn-bg)') +
+      ';color:var(--dm-text);border-radius:5px;">' + p.charAt(0).toUpperCase() + p.slice(1) + '</button>').join('') + '</div>' +
+    '<div style="display:flex;gap:6px;">' +
+      '<button type="button" data-dm-action="confirm-move-to"' + (!moveDestinationId ? ' disabled' : '') +
+        ' style="flex:1;padding:8px;border-radius:5px;border:1px solid var(--dm-accent-border);background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;">Move here</button>' +
+      '<button type="button" data-dm-action="cancel-move-to" style="padding:8px;border-radius:5px;border:1px solid var(--dm-separator);background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:11px;">Cancel</button></div>' +
+    '<p style="margin:8px 0 0;font-size:10px;color:var(--dm-text-dim);">This moves the real element and preserves its classes. Parent-dependent styling may look different after the move.</p>' +
+    '</section>';
+}
+
+let builderOpen = false;
+let builderInsertPosition: 'before' | 'inside' | 'after' = 'after';
+let pendingBuilderKind: string | null = null;
+let pendingBuilderTarget: string | undefined;
+let builderWrapperId: string | undefined;
+let builderTargetMode: 'wrapper' | 'selected' = 'selected';
+let builderPickingTarget = false;
+async function beginBuilderTargetPick(operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  builderPickingTarget = true;
+  // The next click on the page chooses an exact reference element instead of
+  // silently appending content to a large wrapper like <main>.
+  const result = await operation.wait(send({ type: 'SP_SET_INSPECT', on: true },operation));
+  if (typeof result.inspecting === 'boolean') inspecting = result.inspecting;
+  showCaptureToast('success','Click the element on the page where you want to insert.');
+  render();
+}
+function builderTargetId(): string | undefined {
+  return builderTargetMode === 'wrapper' && builderWrapperId ? builderWrapperId : info?.id;
+}
+
+async function buildInsideSelectedParent(operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  const result = await operation.wait(send({ type: 'SP_SELECT_PARENT' },operation));
+  if (!result || result.error || result.ok === false) {
+    showCaptureToast('error','Unable to select the parent wrapper.'); return;
+  }
+  if (result.payload || result.info) info = result.payload || result.info;
+  // Parent is now the selected element, and next insert goes inside it.
+  builderInsertPosition = 'inside';
+  builderWrapperId = info?.id;
+  builderTargetMode = 'wrapper';
+  pendingBuilderKind = null;
+  await operation.wait(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation));
+  render();
+}
+async function makeSelectedWrapperHorizontal(operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  if (multiSelectIds.length > 0) { showCaptureToast('error','Turn off multi-select before changing wrapper layout.'); return; }
+  if (!info?.id || !['div','section','article','main'].includes(info.tagName.toLowerCase())) {
+    showCaptureToast('error','Select a container or div to change its layout.'); return;
+  }
+  await applyStylesBatch([
+    { property:'display', value:'flex' },
+    { property:'flexDirection', value:'row' },
+    { property:'alignItems', value:'center' },
+    { property:'columnGap', value:'24px' },
+    { property:'flexWrap', value:'wrap' },
+  ],'Horizontal wrapper layout',undefined,operation);
+  showCaptureToast('success','Wrapper set to horizontal flex. Adjust spacing in Design.');
+}
+
+async function previewBuilderKind(kind: string, operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  pendingBuilderKind = kind;
+  pendingBuilderTarget = builderTargetId();
+  const result = await send({
+    type: 'SP_PREVIEW_BUILDER_PLACEMENT', targetId: pendingBuilderTarget,
+    position: builderInsertPosition,
+  },operation);
+  if (!result.ok) {
+    showCaptureToast('error','This element cannot be inserted at that position. Try Before or After.');
+    pendingBuilderKind = null;
+  }
+  render();
+}
+async function confirmBuilderInsert(operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  if (!pendingBuilderKind) return;
+  const kind = pendingBuilderKind;
+  const className = builderClassInput.trim();
+  const res = await send({
+    type: 'SP_ADD_BUILDER_ELEMENT', kind, className: className || undefined,
+    targetId: pendingBuilderTarget, position: builderInsertPosition,
+  },operation);
+  if (res.error || !res.ok) {
+    showCaptureToast('error',res.error || 'Could not insert element.');
+    return;
+  }
+  pendingBuilderKind = null;
+  pendingBuilderTarget = undefined;
+  if (res.info) info = res.info;
+  // Follow the element just inserted, rather than silently targeting a
+  // previously selected wrapper elsewhere on the page.
+  builderWrapperId = undefined;
+  builderTargetMode = 'selected';
+  // Structural wrappers accept children; content elements become siblings.
+  builderInsertPosition = ['section','container','div','grid','card'].includes(kind) ? 'inside' : 'after';
+  builderClassInput = '';
+  tab = 'layers';
+  await refreshDomTree(operation);
+  await refreshChanges(operation);
+  showCaptureToast('success', kind.charAt(0).toUpperCase() + kind.slice(1) + ' added. Add another element or open Design.');
+  render();
+}
+
+type BuilderSiteClass = { name: string; count: number; kind: string };
+let builderSiteClasses: BuilderSiteClass[] = [];
+let builderClassInput = '';
+async function refreshBuilderClasses(operation = beginInspectorOperation()) {
+  const result = await send({ type: 'SP_GET_SITE_CLASSES' }, operation);
+  if (result.ok && Array.isArray(result.classes)) {
+    builderSiteClasses = result.classes.filter((c: BuilderSiteClass) =>
+      typeof c.name === 'string' && typeof c.kind === 'string' &&
+      typeof c.count === 'number');
+    render();
+  }
+}
+function renderBuilderPanel(): string {
+  const kinds = [
+    ['section', 'Section'], ['container', 'Container'], ['div', 'Div'],
+    ['heading', 'Heading'], ['paragraph', 'Paragraph'], ['button', 'Button'],
+    ['image', 'Image'], ['card', 'Card'], ['grid', 'Grid'],
+  ];
+  const topClasses = builderSiteClasses.slice(0, 130);
+  const suggestions = topClasses.map(c =>
+    '<option value="' + escapeAttr(c.name) + '" label="' + escapeAttr(c.kind + ' · ' + c.count + ' use(s)') + '"></option>').join('');
+  const groups = ['heading','paragraph','button','section','container','card','grid','image','div','other'];
+  const grouped = groups.map(kind => {
+    const group = topClasses.filter(c => c.kind === kind).slice(0, 14);
+    if (!group.length) return '';
+    return '<optgroup label="' + kind + '">' +
+      group.map(c => '<option value="' + escapeAttr(c.name) + '">' +
+        escapeAttr(c.name) + ' (' + c.count + ')</option>').join('') +
+      '</optgroup>';
+  }).join('');
+  return '<section aria-label="Add elements" style="padding:10px 12px;border-bottom:1px solid var(--dm-separator);">' +
+    '<div style="font-size:12px;font-weight:600;margin-bottom:7px;color:var(--dm-text);">Add elements · Site styles</div>' +
+    '<div style="display:flex;gap:6px;align-items:center;justify-content:space-between;padding:7px 8px;margin-bottom:8px;border:1px solid var(--dm-accent-border);border-radius:6px;background:var(--dm-accent-bg);">' +
+    '<span style="font-size:10px;color:var(--dm-text);">Selected: <b>' + escapeAttr(info?.tagName?.toLowerCase() || 'page') + '</b>' +
+      (info?.className ? ' · ' + escapeAttr(info.className.slice(0,42)) : '') + '</span>' +
+    '<button type="button" data-dm-action="builder-open-design" style="background:transparent;border:0;color:var(--dm-accent);font-size:10px;cursor:pointer;white-space:nowrap;">Style selected</button></div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Select an element on the page and insert Before or After it. Use Inside only when you want to append to a container.</div>' +
+    (info?.tagName?.toLowerCase() === 'main' && builderInsertPosition === 'inside' ?
+      '<div style="font-size:10px;color:#d97706;margin-bottom:8px;">Inside main adds at the end of the entire page content. Choose an element and use Before or After for an exact location.</div>' : '') +
+    '<div style="display:flex;gap:5px;align-items:center;margin-bottom:8px;">' +
+    '<button type="button" data-dm-action="builder-pick-target" style="flex:1;padding:9px;border-radius:6px;border:1px solid var(--dm-accent-border);background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;font-weight:600;">' +
+      (builderPickingTarget ? 'Click an element on the page...' : 'Pick exact position on page') + '</button></div>' +
+    '<div style="display:flex;gap:5px;align-items:center;margin-bottom:8px;">' +
+    '<span style="flex:1;font-size:10px;color:var(--dm-text-secondary);">Insert target: <b>' +
+      (builderTargetMode === 'wrapper' && builderWrapperId ? 'Parent wrapper (explicit)' : 'Selected element') +
+    '</b></span>' +
+    '<button type="button" data-dm-action="builder-target-selected" style="padding:5px;border:1px solid var(--dm-separator);background:var(--dm-btn-bg);color:var(--dm-text);border-radius:5px;font-size:10px;cursor:pointer;">Use selected</button></div>' +
+    '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">Search existing classes or create a new one</label>' +
+    '<input data-dm-builder-class list="dm-builder-site-classes" aria-label="Element CSS class" value="' + escapeAttr(builderClassInput) + '" placeholder="Search classes..." style="box-sizing:border-box;width:100%;margin-bottom:6px;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;"/>' +
+    '<datalist id="dm-builder-site-classes">' + suggestions + '</datalist>' +
+    '<select data-dm-builder-select aria-label="Choose existing CSS class" style="box-sizing:border-box;width:100%;margin-bottom:8px;padding:6px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;">' +
+    '<option value="">Select site class (' + builderSiteClasses.length + ' found)</option>' + grouped + '</select>' +
+    '<div style="display:flex;gap:5px;margin-bottom:8px;">' +
+      '<button type="button" data-dm-action="builder-select-parent" style="flex:1;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:10px;">↑ Use parent wrapper</button>' +
+      '<button type="button" data-dm-action="builder-horizontal" style="flex:1;padding:7px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:10px;">↔ Horizontal layout</button></div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">For a paragraph after H2, select the heading and choose After. Use Inside only for a section or div. Flex/Grid controls the visual row or column layout.</div>' +
+    '<label style="font-size:10px;color:var(--dm-text-secondary);display:block;margin-bottom:5px;">Placement relative to selected element</label>' +
+    '<select data-dm-builder-position style="width:100%;padding:6px;margin-bottom:8px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-input-bg);color:var(--dm-text);font-size:11px;">' +
+    ['before','inside','after'].map(position =>
+      '<option value="' + position + '"' + (builderInsertPosition === position ? ' selected' : '') + '>' + position.charAt(0).toUpperCase() + position.slice(1) + '</option>').join('') +
+    '</select>' +
+    '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;">' +
+    kinds.map(([kind,label]) => '<button type="button" data-dm-builder-kind="' + kind + '" style="padding:8px 4px;border:1px solid var(--dm-separator);border-radius:5px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:10px;">+ ' + label + '</button>').join('') +
+    '</div>' +
+    (pendingBuilderKind ? '<div style="display:flex;gap:6px;align-items:center;margin-top:8px;">' +
+      '<button type="button" data-dm-action="confirm-builder-insert" style="flex:1;padding:8px;border:1px solid var(--dm-accent-border);border-radius:6px;background:var(--dm-accent-bg);color:var(--dm-accent);cursor:pointer;font-size:11px;font-weight:600;">Insert ' + escapeAttr(pendingBuilderKind) + ' here</button>' +
+      '<button type="button" data-dm-action="cancel-builder-insert" style="padding:8px;border:1px solid var(--dm-separator);border-radius:6px;background:var(--dm-btn-bg);color:var(--dm-text);cursor:pointer;font-size:11px;">Cancel</button></div>' : '') +
+    '</section>';
 }
 
 function renderLayersTab(): string {
@@ -7844,8 +8213,39 @@ function renderDesignTab(): string {
       '</div>'
     : '';
 
+  // Compact grid tracks control. Computed grid-template-columns typically
+  // resolves repeat() into a space-separated list of pixel track sizes;
+  // handle authored repeat() too, without confusing minmax() whitespace.
+  const gridColumnsCss = (s.gridTemplateColumns || '').trim();
+  const authoredRepeat = gridColumnsCss.match(/^repeat\(\s*(\d+)\s*,/i);
+  const gridTracks = gridColumnsCss && gridColumnsCss !== 'none'
+    ? gridColumnsCss.match(/(?:[^\s(]+\([^)]*\)|[^\s]+)/g) || []
+    : [];
+  const inferredGridColumns = authoredRepeat
+    ? Number(authoredRepeat[1]) : gridTracks.length;
+  const gridColumnQuickControls = isGrid
+    ? '<div class="dm-field" style="margin-bottom:3px;">' +
+        '<label class="dm-field-label">Grid columns' +
+          (inferredGridColumns > 0 ? ' · ' + inferredGridColumns + ' current' : '') +
+        '</label>' +
+        '<div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;">' +
+          [1,2,3,4,5,6].map(n =>
+            '<button type="button" data-dm-prop="gridTemplateColumns" data-dm-value="repeat(' + n + ', minmax(0, 1fr))"' +
+              ' title="Set ' + n + ' equal grid columns on this selected element"' +
+              ' aria-label="Set grid to ' + n + ' columns" aria-pressed="' + (inferredGridColumns === n) + '"' +
+              ' style="height:30px;border-radius:5px;border:1px solid ' +
+                (inferredGridColumns === n ? 'var(--dm-accent-border)' : 'var(--dm-btn-border)') +
+              ';background:' + (inferredGridColumns === n ? 'var(--dm-accent-bg)' : 'var(--dm-btn-bg)') +
+              ';color:' + (inferredGridColumns === n ? 'var(--dm-accent)' : 'var(--dm-text-secondary)') +
+              ';cursor:pointer;font-size:11px;font-weight:600;">' + n + '</button>').join('') +
+        '</div>' +
+        '<div style="font-size:10px;color:var(--dm-text-dim);margin-top:5px;">Equal-width columns on this grid only. Check tablet and mobile layouts after changing.</div>' +
+      '</div>'
+    : '';
+
   const layoutContent =
     layoutModeRow(s) + sp() +
+    gridColumnQuickControls + (isGrid ? sp() : '') +
     // W (5) + aspect (2) + H (5). The standalone "resize to content"
     // button is gone \u2014 Hug mode in each size input owns that intent now.
     '<div class="dm-grid-12 dm-size-row">' +
@@ -9642,14 +10042,14 @@ function renderSettingsView(): string {
     '<span style="font-size:10px;color:var(--dm-text-dim);">px</span>' +
     '</div></div>' +
     '<div style="' + sS + '"><div style="' + sT + '">Page cursor</div>' +
-    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Show the Design Mode icon as the mouse cursor on the page while the panel is open.</div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Show the Dev Agent icon as the mouse cursor on the page while the panel is open.</div>' +
     '<div style="display:flex;gap:4px;">' +
     '<button data-dm-custom-cursor="on" style="' + (customCursor ? activeBtn : inactiveBtn) + '">On</button>' +
     '<button data-dm-custom-cursor="off" style="' + (!customCursor ? activeBtn : inactiveBtn) + '">Off</button>' +
     '</div></div>' +
     (!launchCapabilities.floating ? '' :
     '<div style="' + sS + '"><div style="' + sT + '">Launch</div>' +
-    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Where the toolbar icon and Alt+D open Design Mode. Pin on top starts a floating opener — your browser needs a click in that window to pin.</div>' +
+    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Where the toolbar icon and Alt+D open Dev Agent. Pin on top starts a floating opener — your browser needs a click in that window to pin.</div>' +
     '<div role="group" aria-label="Launch surface" style="display:flex;gap:4px;">' +
     '<button data-dm-launch-surface="side-panel" aria-pressed="' + (launchSurface === 'side-panel') + '" style="' + (launchSurface === 'side-panel' ? activeBtn : inactiveBtn) + '">Side panel</button>' +
     '<button data-dm-launch-surface="floating" aria-pressed="' + (launchSurface === 'floating') + '" style="' + (launchSurface === 'floating' ? activeBtn : inactiveBtn) + '">Floating</button>' +
@@ -9673,7 +10073,7 @@ function renderSettingsView(): string {
     '<button data-dm-action="show-shortcuts" style="flex:1;padding:6px;background:var(--dm-btn-bg);border:1px solid var(--dm-btn-border);border-radius:6px;color:var(--dm-text-secondary);cursor:pointer;font-size:10px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px;">' + icon('keyboard', 11) + ' Keyboard shortcuts</button>' +
     '<button data-dm-action="reset-settings" style="flex:1;padding:6px;background:var(--dm-danger-bg);border:1px solid var(--dm-danger-border);border-radius:6px;color:var(--dm-text);cursor:pointer;font-size:10px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px;">' + icon('rotateCcw', 11) + ' Reset settings</button>' +
     '</div>' +
-    '</div><div style="margin-top:16px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Design Mode v' + extensionVersion() + '</div></div></div>';
+    '</div><div style="margin-top:16px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Dev Agent v' + extensionVersion() + '</div></div></div>';
 }
 
 function renderPipLaunchInterstitial(): string {
@@ -9708,7 +10108,7 @@ function detectBrowser(): string {
 
 function buildDiagnostics(): string {
   const lines = [
-    pad('Design Mode') + (extensionVersion() || 'dev'),
+    pad('Dev Agent') + (extensionVersion() || 'dev'),
     pad('Browser') + detectBrowser(),
     pad('Platform') + (navigator.platform || 'unknown') + ', ' + (navigator.language || 'unknown'),
     pad('Theme') + resolvedTheme,
@@ -9808,7 +10208,7 @@ function renderHelpView(): string {
     '<a href="mailto:hello@sandeepbaskaran.com" data-dm-help-target="email" style="' + linkStyle + '">Security disclosure ↗</a>' +
     '</div></div>' +
     '</div>' +
-    '<div style="margin-top:16px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Design Mode v' + extensionVersion() + '</div></div>' +
+    '<div style="margin-top:16px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Dev Agent v' + extensionVersion() + '</div></div>' +
     '</div>';
 }
 
@@ -9824,9 +10224,9 @@ function renderFileAccessView(): string {
     '<span style="font-size:14px;font-weight:600;color:var(--dm-text);">Local file</span></div>' +
     '<div style="' + card + '">' +
     '<p style="margin:0 0 12px 0;font-size:12px;line-height:1.5;color:var(--dm-text-secondary);">' +
-    (IS_FIREFOX ? 'Firefox has not allowed Design Mode to access this local file. Enable local-file access in the add-on’s permissions:' : 'Chrome blocks extensions from local files by default. To edit this file, allow Design Mode to access file URLs:') + '</p>' +
+    (IS_FIREFOX ? 'Firefox has not allowed Dev Agent to access this local file. Enable local-file access in the add-on’s permissions:' : 'Chrome blocks extensions from local files by default. To edit this file, allow Design Mode to access file URLs:') + '</p>' +
     '<ol style="margin:0 0 12px 0;padding-left:18px;">' +
-    step(IS_FIREFOX ? 'Type <strong style="color:var(--dm-text);">about:addons</strong> in Firefox’s address bar, select Design Mode, then open <strong style="color:var(--dm-text);">Permissions</strong>.' : 'Open Design Mode’s extension settings — the button below takes you there.') +
+    step(IS_FIREFOX ? 'Type <strong style="color:var(--dm-text);">about:addons</strong> in Firefox’s address bar, select Dev Agent, then open <strong style="color:var(--dm-text);">Permissions</strong>.' : 'Open Design Mode’s extension settings — the button below takes you there.') +
     step('Turn on <strong style="color:var(--dm-text);">“' + (IS_FIREFOX ? 'Access local files on your computer' : 'Allow access to file URLs') + '”</strong>.') +
     step(IS_FIREFOX ? 'Come back to this file tab, reload the page, and reopen the sidebar.' : 'Chrome reloads the extension — come back to this tab and reopen the panel.') +
     '</ol>' +
@@ -9847,7 +10247,7 @@ function renderHoverGuideView(): string {
   const li = (t: string) => '<li style="margin:0 0 6px 0;font-size:12px;line-height:1.5;color:var(--dm-text-secondary);">' + t + '</li>';
 
   const steps = IS_SAFARI
-    ? li('Leave touch emulation and return to a normal macOS Safari webpage for mouse hover. Dock Web Inspector and use Design Mode’s own picker.')
+    ? li('Leave touch emulation and return to a normal macOS Safari webpage for mouse hover. Dock Web Inspector and use Dev Agent’s own picker.')
     : IS_FIREFOX
     ? li('In the ' + b('Responsive Design Mode') + ' toolbar, click the ' + b('touch simulation') + ' button (the finger / pointer icon) to turn it ' + b('off') + '.') +
       li('Keep any width you like — only touch simulation matters for hover.')
@@ -9901,7 +10301,7 @@ function renderContributeView(): string {
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">' +
     '<button data-dm-action="back-from-contribute" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('chevronLeft', 14) + '</button>' +
     '<span style="font-size:14px;font-weight:600;color:var(--dm-text);">Contribute</span></div>' +
-    '<p style="margin:0 0 18px 2px;font-size:12px;line-height:1.55;color:var(--dm-text-secondary);">Design Mode is free, forever — and open source. If it’s useful to you, here are a few ways to help.</p>' +
+    '<p style="margin:0 0 18px 2px;font-size:12px;line-height:1.55;color:var(--dm-text-secondary);">Dev Agent is free, forever — and open source. If it’s useful to you, here are a few ways to help.</p>' +
     '<div style="display:flex;flex-direction:column;gap:16px;">' +
 
     '<div><div style="' + sectionLabel + '">Spread the word</div>' +
@@ -9928,7 +10328,7 @@ function renderContributeView(): string {
     '</div></div>' +
 
     '</div>' +
-    '<div style="margin-top:18px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Design Mode v' + extensionVersion() + '</div></div>' +
+    '<div style="margin-top:18px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Dev Agent v' + extensionVersion() + '</div></div>' +
     '</div>';
 }
 
@@ -10076,13 +10476,13 @@ function render() {
     html = renderHeader() + renderHoverGuideView() + renderCaptureToast();
   } else {
     let tabContent = '';
-    if (tab === 'layers') tabContent = renderLayersTab();
+    if (tab === 'layers') tabContent = (builderOpen ? renderBuilderPanel() : '') + renderLayersTab();
     else if (tab === 'design') tabContent = renderDesignTab();
     else if (tab === 'changes') tabContent = renderChangesTab();
     if (routeEditingBlocked) tabContent = '<div role="status" style="padding:12px;color:var(--dm-text);font-size:12px;">Waiting for the destination page. Editing is paused to protect saved changes. If this persists, reload the page; review and export remain available.</div>' + tabContent;
 
     html = '<div style="display:flex;flex-direction:column;height:100vh;overflow:hidden;position:relative;">' +
-      renderHeader() + renderActionRow() + renderCommentCard() + renderTabs() +
+      renderHeader() + renderActionRow() + renderMoveToPanel() + renderStylePasteOptions() + renderCommentCard() + renderTabs() +
       // Layers pans both axes so deep trees stay readable (rows are
       // max-content wide there — see renderLayersTab); other tabs keep
       // horizontal overflow clipped.
@@ -10321,6 +10721,26 @@ function setupDelegation() {
       trackFeature({ feature: 'help', outcome: 'attempt', target: helpLink.dataset.dmHelpTarget });
     }
 
+    // Visual Builder preset insertion. Route edits through the existing content
+    // script change tracker so MCP sees a real DOM insertion, not just preview HTML.
+    const movePosButton = target.closest<HTMLElement>('[data-dm-move-position]');
+    if (movePosButton && moveSourceId) {
+      const pos = movePosButton.dataset.dmMovePosition;
+      if (pos === 'before' || pos === 'inside' || pos === 'after') {
+        movePlacement = pos;
+        void runInspectorAction(updateMovePreview(operation));
+        render();
+      }
+      return;
+    }
+    const builderBtn = target.closest<HTMLElement>('[data-dm-builder-kind]');
+    if (builderBtn) {
+      builderClassInput = (root.querySelector<HTMLInputElement>('[data-dm-builder-class]')?.value || '').trim();
+      const kind = builderBtn.dataset.dmBuilderKind;
+      if (kind) void runInspectorAction(previewBuilderKind(kind,operation));
+      return;
+    }
+
     // Action buttons
     const actionBtn = target.closest<HTMLElement>('[data-dm-action]');
     if (actionBtn) {
@@ -10346,7 +10766,42 @@ function setupDelegation() {
           }));
           break;
         }
+        case 'toggle-builder':
+          builderOpen = !builderOpen; tab = 'layers'; render();
+          if (builderOpen) { builderTargetMode = 'selected'; builderWrapperId = undefined; builderInsertPosition = 'after'; void runInspectorAction(refreshBuilderClasses(operation)); }
+          else { pendingBuilderKind = null; void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation)); }
+          break;
+        case 'confirm-builder-insert': void runInspectorAction(confirmBuilderInsert(operation)); break;
+        case 'builder-pick-target': void runInspectorAction(beginBuilderTargetPick(operation)); break;
+        case 'builder-open-design': tab = 'design'; render(); break;
+        case 'builder-select-parent': void runInspectorAction(buildInsideSelectedParent(operation)); break;
+        case 'builder-target-selected':
+          builderTargetMode = 'selected';
+          builderWrapperId = undefined;
+          pendingBuilderKind = null;
+          builderInsertPosition = 'after';
+          render();
+          void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation));
+          break;
+        case 'builder-horizontal': void runInspectorAction(makeSelectedWrapperHorizontal(operation)); break;
+        case 'cancel-builder-insert':
+          pendingBuilderKind = null; render();
+          void runInspectorAction(send({ type: 'SP_CLEAR_BUILDER_PREVIEW' },operation));
+          break;
+        case 'copy-appearance': runInspectorAction(copySelectedAppearance(operation)); break;
+        case 'paste-appearance': runInspectorAction(pasteSelectedAppearance(operation)); break;
+        case 'hide-style-paste-options': stylePasteOptionsOpen = false; render(); break;
         case 'duplicate': runInspectorAction(domAction('duplicate', operation)); break;
+        case 'move-to': void runInspectorAction(startMoveTo(operation)); break;
+        case 'move-pick-destination':
+          movePickDestination = true;
+          void runInspectorAction(send({type:'SP_SET_INSPECT',on:true},operation).then(res => {
+            if (typeof res.inspecting === 'boolean') inspecting = res.inspecting;
+            render();
+          }));
+          break;
+        case 'confirm-move-to': void runInspectorAction(confirmMoveTo(operation)); break;
+        case 'cancel-move-to': void runInspectorAction(cancelMoveTo(operation)); break;
         case 'delete': runInspectorAction(domAction('delete', operation)); break;
         case 'comment': startComment(); break;
         case 'region-comment': startRegionComment(); break;
@@ -12747,6 +13202,30 @@ function setupDelegation() {
   // Change handler (selects)
   root.addEventListener('change', (e) => {
     const target = e.target as HTMLElement;
+    const builderPosition = target.closest<HTMLSelectElement>('[data-dm-builder-position]');
+    if (builderPosition) {
+      const value = builderPosition.value;
+      if (value === 'before' || value === 'inside' || value === 'after') {
+        builderInsertPosition = value;
+        if (pendingBuilderKind) void runInspectorAction(previewBuilderKind(pendingBuilderKind));
+      }
+      return;
+    }
+    const styleCategoryInput = target.closest<HTMLInputElement>('[data-dm-style-category]');
+    if (styleCategoryInput) {
+      const category = styleCategoryInput.dataset.dmStyleCategory as StyleCategory;
+      if (category === 'appearance' || category === 'spacing' || category === 'layout') {
+        enabledStyleCategories[category] = styleCategoryInput.checked;
+      }
+      return;
+    }
+    const classSelect = target.closest<HTMLSelectElement>('[data-dm-builder-select]');
+    if (classSelect) {
+      builderClassInput = classSelect.value;
+      const input = root.querySelector<HTMLInputElement>('[data-dm-builder-class]');
+      if (input) input.value = builderClassInput;
+      return;
+    }
     const linkUrlInput = target.closest<HTMLInputElement>('[data-dm-rich-link-url]');
     if (linkUrlInput) {
       const editor = root.querySelector<HTMLElement>('[data-dm-richtext]');
@@ -13762,6 +14241,8 @@ function setupDelegation() {
   // Input handler (color pickers, comment textarea, layer search)
   root.addEventListener('input', (e) => {
     const target = e.target as HTMLElement;
+    const builderClass = target.closest<HTMLInputElement>('[data-dm-builder-class]');
+    if (builderClass) { builderClassInput = builderClass.value; return; }
 
     // Changes-tab search input — live-filter the list as the user types.
     const changesSearchInput = target.closest<HTMLInputElement>('[data-dm-changes-search]');

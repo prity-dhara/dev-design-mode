@@ -28,6 +28,8 @@ import { initCustomCursor, applyBaseCursor, clearBaseCursor } from './custom-cur
 import { getStyleChanges, getTextChanges, getDomChanges, clearAllChanges, applyStyleChange, applyWithCompanions, computeCompanions, applyTextChange, applyHtmlChange, applyAttributeChange, removeStyleChange, removeDomChange, removeTextChange, recordDomChange, connectToServer, disconnectFromServer, isConnected, isAgentConnected, getChangeReport, reorderChange, getAllChanges, replaySession, setOverridesEnabled, applyChangesPayload, setUnhandledMessageHandler, sendRelayResponse, setChangesStatus, syncCommentChange, syncCommentDeleted, stageAgentHandoff, getFeedbackSessionView, isLiveFeedbackSupported, stopFeedbackSessionFromUi } from './change-tracker';
 import { isSafeRichTextHref } from '../rich-text-preservation';
 import { copyElement, pasteElement, duplicateElement, moveElement } from './html-editor';
+import { addBuilderElement, previewBuilderPlacement, clearBuilderPreview, highlightInsertedBuilderElement, BUILDER_KINDS, type BuilderKind, type InsertPosition } from './visual-builder';
+import { discoverSiteClasses } from './site-class-discovery';
 import { isTypingTarget } from './shortcut-binding';
 import { deleteElements, type DeleteCommand } from './delete-command';
 import { beginMove, type MoveCommand } from './move-command';
@@ -1942,6 +1944,94 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       break;
     }
 
+    case 'COPY_APPEARANCE': {
+      const selected = getSelectedElementId();
+      const source = selected ? getElementById(selected) : null;
+      if (!source || source === document.body || source === document.documentElement) {
+        sendResponse({ ok: false, error: 'Select a page element to copy its appearance.' });
+        break;
+      }
+      const computed = window.getComputedStyle(source);
+      // Safe, finite allowlist of visual-only styles. No geometry, interactivity,
+      // positioning, transitions or animation settings are transferred.
+      // Each group is independent. The side panel chooses which groups to
+      // paste; copying never edits the source element or its CSS classes.
+      const groups = {
+        appearance: [
+          'font-family', 'font-size', 'font-weight', 'font-style',
+          'line-height', 'letter-spacing', 'text-transform', 'text-align',
+          'color', 'background-color', 'border-radius',
+          'box-shadow', 'text-shadow', 'opacity', 'text-decoration-line',
+        ],
+        spacing: [
+          'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+          'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+          'row-gap', 'column-gap',
+        ],
+        layout: [
+          'display', 'flex-direction', 'flex-wrap',
+          'justify-content', 'align-items', 'align-content',
+          'grid-auto-flow',
+        ],
+      } as const;
+      const changesByGroup = Object.fromEntries(
+        Object.entries(groups).map(([group, properties]) => [group,
+          properties.map(property => ({
+            property, value: computed.getPropertyValue(property).trim(),
+          })).filter(({ property, value }) => {
+            if (!value || value === 'normal' || value === 'none' && property === 'box-shadow') return false;
+            if (property !== 'background-color') return true;
+            // Do not transfer transparent backgrounds: they may hide an
+            // intended surface behind a heading or section.
+            const compact = value.toLowerCase().replace(/\s+/g, '');
+            return compact !== 'transparent' &&
+              compact !== 'rgba(0,0,0,0)' &&
+              compact !== 'rgb(0 0 0 / 0)'.replace(/\s+/g, '') &&
+              compact !== 'rgb(0 0 0 / 0%)'.replace(/\s+/g, '');
+          }),
+        ]),
+      );
+      sendResponse({ ok: true, changesByGroup, tagName: source.tagName.toLowerCase() });
+      break;
+    }
+
+    case 'GET_SITE_CLASSES': {
+      sendResponse({ ok: true, classes: discoverSiteClasses() });
+      break;
+    }
+
+    case 'PREVIEW_BUILDER_PLACEMENT': {
+      const position = msg.position as InsertPosition;
+      if (!['before','inside','after'].includes(position)) { sendResponse({ ok: false }); break; }
+      sendResponse({ ok: previewBuilderPlacement(msg.targetId || getSelectedElementId() || undefined,position) });
+      break;
+    }
+    case 'CLEAR_BUILDER_PREVIEW': {
+      clearBuilderPreview();
+      sendResponse({ ok: true });
+      break;
+    }
+    case 'ADD_BUILDER_ELEMENT': {
+      const kind = msg.kind as BuilderKind;
+      if (!BUILDER_KINDS.includes(kind)) { sendResponse({ ok: false, error: 'Unknown element type' }); break; }
+      const position = msg.position as InsertPosition;
+      if (!['before','inside','after'].includes(position)) { sendResponse({ok:false,error:'Choose where to insert first.'}); break; }
+      const id = addBuilderElement(kind, msg.targetId || getSelectedElementId() || undefined, msg.className, position);
+      if (!id) { sendResponse({ ok: false, error: 'Could not add element on this page or invalid class name' }); break; }
+      const el = getElementById(id)!;
+      setSelectedElementId(id);
+      showSelect(el);
+      el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+      requestAnimationFrame(() => highlightInsertedBuilderElement(id, kind));
+      const parentId = el.parentElement ? getOrAssignId(el.parentElement) : '';
+      const nextSiblingId = el.nextElementSibling ? getOrAssignId(el.nextElementSibling) : null;
+      undoStack.push({ kind: 'dom', action: 'duplicate', elementId: id, html: el.outerHTML, parentId, nextSiblingId });
+      redoStack.length = 0;
+      getChangesPayload().then(p => sendResponse({ ok: true, parentId, info: { ...buildElementInfo(el), element: undefined }, ...p, undoCount: undoStack.length, redoCount: redoStack.length }))
+        .catch(error => sendResponse({ ok: false, error: String(error) }));
+      return true;
+    }
+
     case 'DOM_ACTION': {
       const sid = getSelectedElementId();
       const requestedIds = Array.isArray(msg.elementIds)
@@ -2664,6 +2754,22 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       break;
     }
 
+    case 'PREVIEW_MOVE_PLACEMENT': {
+      const source = typeof msg.sourceId === 'string' ? getElementById(msg.sourceId) : null;
+      const target = typeof msg.targetId === 'string' ? getElementById(msg.targetId) : null;
+      const position = msg.position as InsertPosition;
+      const badParents = new Set(['A','BUTTON','P','H1','H2','H3','H4','H5','H6','IMG','INPUT','BR','HR','SPAN','LABEL','TEXTAREA','SELECT','OPTION']);
+      const valid = !!source && !!target && !!source.parentElement &&
+        source !== document.body && source !== document.documentElement &&
+        target !== source && !source.contains(target) &&
+        !source.closest('[data-dm-builder-overlay]') && !target.closest('[data-dm-builder-overlay]') &&
+        ['before','after','inside'].includes(position) &&
+        (position !== 'inside' ? !!target.parentElement : !badParents.has(target.tagName));
+      if (!valid) { clearBuilderPreview(); sendResponse({ ok:false, error:'Choose another destination outside the element being moved.' }); break; }
+      sendResponse({ ok: previewBuilderPlacement(msg.targetId,position) });
+      break;
+    }
+
     case 'REORDER_LAYER': {
       const source = getElementById(msg.sourceId);
       const target = getElementById(msg.targetId);
@@ -2685,9 +2791,12 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
         }
         return false;
       })();
-      const canDropInside = position === 'inside' ? !!source && !!target : true;
+      const invalidContainer = new Set(['A','BUTTON','P','H1','H2','H3','H4','H5','H6','IMG','INPUT','BR','HR','SPAN','LABEL','TEXTAREA','SELECT','OPTION']);
+      const safelyMovable = !!source && source !== document.body && source !== document.documentElement &&
+        !source.closest('[data-dm-builder-overlay]') && !target?.closest('[data-dm-builder-overlay]');
+      const canDropInside = position === 'inside' ? !!source && !!target && !invalidContainer.has(target.tagName) : true;
       const canDropSibling = position !== 'inside' ? !!source && !!target && !!target.parentElement : true;
-      if (source && target && !isDescendant && canDropInside && canDropSibling) {
+      if (source && target && safelyMovable && !isDescendant && canDropInside && canDropSibling) {
         const dmAttrParent = (p: HTMLElement | null) =>
           p && p !== document.body && p !== document.documentElement ? getOrAssignId(p) : undefined;
         let origin: { parentSelector: string; index: number; parentId?: string } | undefined;
@@ -2731,7 +2840,10 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
         const info = buildElementInfo(source);
         onElementSelected(info);
       }
-      getChangesPayload().then(p => sendResponse({ ok: true, ...p })).catch(error => sendResponse({ ok: false, error: String(error) }));
+      clearBuilderPreview();
+      getChangesPayload().then(p => sendResponse({ ok: true, ...p, undoCount: undoStack.length, redoCount: redoStack.length,
+        info: source && source.isConnected ? { ...buildElementInfo(source), element: undefined } : null,
+      })).catch(error => sendResponse({ ok: false, error: String(error) }));
       return true;
       break;
     }
