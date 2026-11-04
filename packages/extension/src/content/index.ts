@@ -28,7 +28,7 @@ import { initCustomCursor, applyBaseCursor, clearBaseCursor } from './custom-cur
 import { getStyleChanges, getTextChanges, getDomChanges, clearAllChanges, applyStyleChange, applyWithCompanions, computeCompanions, applyTextChange, applyHtmlChange, applyAttributeChange, removeStyleChange, removeDomChange, removeTextChange, recordDomChange, connectToServer, disconnectFromServer, isConnected, isAgentConnected, getChangeReport, reorderChange, getAllChanges, replaySession, setOverridesEnabled, applyChangesPayload, setUnhandledMessageHandler, sendRelayResponse, setChangesStatus, syncCommentChange, syncCommentDeleted, stageAgentHandoff, getFeedbackSessionView, isLiveFeedbackSupported, stopFeedbackSessionFromUi } from './change-tracker';
 import { isSafeRichTextHref } from '../rich-text-preservation';
 import { copyElement, pasteElement, duplicateElement, moveElement } from './html-editor';
-import { addBuilderElement, BUILDER_KINDS, type BuilderKind } from './visual-builder';
+import { addBuilderElement, previewBuilderPlacement, clearBuilderPreview, BUILDER_KINDS, type BuilderKind, type InsertPosition } from './visual-builder';
 import { discoverSiteClasses } from './site-class-discovery';
 import { isTypingTarget } from './shortcut-binding';
 import { deleteElements, type DeleteCommand } from './delete-command';
@@ -2000,14 +2000,28 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       break;
     }
 
+    case 'PREVIEW_BUILDER_PLACEMENT': {
+      const position = msg.position as InsertPosition;
+      if (!['before','inside','after'].includes(position)) { sendResponse({ ok: false }); break; }
+      sendResponse({ ok: previewBuilderPlacement(msg.targetId || getSelectedElementId() || undefined,position) });
+      break;
+    }
+    case 'CLEAR_BUILDER_PREVIEW': {
+      clearBuilderPreview();
+      sendResponse({ ok: true });
+      break;
+    }
     case 'ADD_BUILDER_ELEMENT': {
       const kind = msg.kind as BuilderKind;
       if (!BUILDER_KINDS.includes(kind)) { sendResponse({ ok: false, error: 'Unknown element type' }); break; }
-      const id = addBuilderElement(kind, msg.targetId || getSelectedElementId() || undefined, msg.className);
+      const position = msg.position as InsertPosition;
+      if (!['before','inside','after'].includes(position)) { sendResponse({ok:false,error:'Choose where to insert first.'}); break; }
+      const id = addBuilderElement(kind, msg.targetId || getSelectedElementId() || undefined, msg.className, position);
       if (!id) { sendResponse({ ok: false, error: 'Could not add element on this page or invalid class name' }); break; }
       const el = getElementById(id)!;
       setSelectedElementId(id);
       showSelect(el);
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       const parentId = el.parentElement ? getOrAssignId(el.parentElement) : '';
       const nextSiblingId = el.nextElementSibling ? getOrAssignId(el.nextElementSibling) : null;
       undoStack.push({ kind: 'dom', action: 'duplicate', elementId: id, html: el.outerHTML, parentId, nextSiblingId });
