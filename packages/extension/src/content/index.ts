@@ -28,7 +28,7 @@ import { initCustomCursor, applyBaseCursor, clearBaseCursor } from './custom-cur
 import { getStyleChanges, getTextChanges, getDomChanges, clearAllChanges, applyStyleChange, applyWithCompanions, computeCompanions, applyTextChange, applyHtmlChange, applyAttributeChange, removeStyleChange, removeDomChange, removeTextChange, recordDomChange, connectToServer, disconnectFromServer, isConnected, isAgentConnected, getChangeReport, reorderChange, getAllChanges, replaySession, setOverridesEnabled, applyChangesPayload, setUnhandledMessageHandler, sendRelayResponse, setChangesStatus, syncCommentChange, syncCommentDeleted, stageAgentHandoff, getFeedbackSessionView, isLiveFeedbackSupported, stopFeedbackSessionFromUi } from './change-tracker';
 import { isSafeRichTextHref } from '../rich-text-preservation';
 import { copyElement, pasteElement, duplicateElement, moveElement } from './html-editor';
-import { addBuilderElement, previewBuilderPlacement, clearBuilderPreview, BUILDER_KINDS, type BuilderKind, type InsertPosition } from './visual-builder';
+import { addBuilderElement, previewBuilderPlacement, clearBuilderPreview, highlightInsertedBuilderElement, BUILDER_KINDS, type BuilderKind, type InsertPosition } from './visual-builder';
 import { discoverSiteClasses } from './site-class-discovery';
 import { isTypingTarget } from './shortcut-binding';
 import { deleteElements, type DeleteCommand } from './delete-command';
@@ -1186,6 +1186,9 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
         const el = document.querySelector('[data-dm-' + realId + ']') as HTMLElement | null;
         if (el && typeof el.scrollIntoView === 'function') {
           el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      if (['section','container','div','grid'].includes(kind)) {
+        requestAnimationFrame(() => highlightInsertedBuilderElement(id,kind));
+      }
         }
       }
       sendResponse({ ok: true });
