@@ -6793,7 +6793,7 @@ function renderHeader(): string {
     '<div style="flex:1;"></div>' + renderMcpStatus() +
     iconButton('toggle-theme', 'Toggle theme', themeIcon as keyof typeof icons) +
     iconButton('settings', 'Settings', 'settings') +
-    '<details class="dm-more-dropdown dm-header-more"><summary title="More options" aria-label="More options">' + icon('moreHorizontal', 17) + '</summary><div class="dm-more-menu">' +
+    '<details class="dm-more-dropdown dm-header-more"><summary title="More options" aria-label="More options">' + icon('ellipsis', 17) + '</summary><div class="dm-more-menu">' +
     floatingActions +
     menuButton('help', 'Help', 'helpCircle') +
     menuButton('contribute', 'Contribute', 'heartHandshake') +
@@ -6823,9 +6823,9 @@ function renderActionRow(): string {
     toolButton('duplicate', 'Duplicate', 'copy', bs(), dis) +
     toolButton('delete', 'Remove', 'trash', bs('var(--dm-danger)'), dis) +
     toolButton('undo', 'Undo (Ctrl+Z)', 'undo', bs(undefined, true)) +
-    toolButton('redo', 'Redo (Ctrl+Shift+Z)', 'redo', bs(undefined, true)) +
+    toolButton('redo', 'Redo (Ctrl+Shift+Z)', 'undo', bs(undefined, true) + ';transform:scaleX(-1);') +
     '</div>' +
-    '<details class="dm-more-dropdown dm-toolbar-more"><summary title="More editing tools" aria-label="More editing tools">' + icon('moreHorizontal', 17) + '</summary><div class="dm-more-menu">' +
+    '<details class="dm-more-dropdown dm-toolbar-more"><summary title="More editing tools" aria-label="More editing tools">' + icon('ellipsis', 17) + '</summary><div class="dm-more-menu">' +
     menuButton('comment', 'Comment', 'messageSquare', dis) +
     menuButton('region-comment', 'Annotate region', 'squareDashedMousePointer') +
     menuButton('screenshot', 'Screenshot', 'camera') +
