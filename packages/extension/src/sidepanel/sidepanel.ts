@@ -10366,20 +10366,12 @@ function setupDelegation() {
       trackFeature({ feature: 'help', outcome: 'attempt', target: helpLink.dataset.dmHelpTarget });
     }
 
-    const classSelect = target.closest<HTMLSelectElement>('[data-dm-builder-select]');
-    if (classSelect) {
-      const classInput = document.querySelector<HTMLInputElement>('[data-dm-builder-class]');
-      if (classInput) classInput.value = classSelect.value;
-      builderClassInput = classSelect.value;
-      return;
-    }
-
     // Visual Builder preset insertion. Route edits through the existing content
     // script change tracker so MCP sees a real DOM insertion, not just preview HTML.
     const builderBtn = target.closest<HTMLElement>('[data-dm-builder-kind]');
     if (builderBtn) {
       const kind = builderBtn.dataset.dmBuilderKind;
-      const className = (document.querySelector<HTMLInputElement>('[data-dm-builder-class]')?.value || '').trim();
+      const className = (root.querySelector<HTMLInputElement>('[data-dm-builder-class]')?.value || '').trim();
       builderClassInput = className;
       runInspectorAction((async () => {
         const res = await send({ type: 'SP_ADD_BUILDER_ELEMENT', kind, className: className || undefined, targetId: info?.id }, operation);
@@ -12821,6 +12813,13 @@ function setupDelegation() {
   // Change handler (selects)
   root.addEventListener('change', (e) => {
     const target = e.target as HTMLElement;
+    const classSelect = target.closest<HTMLSelectElement>('[data-dm-builder-select]');
+    if (classSelect) {
+      builderClassInput = classSelect.value;
+      const input = root.querySelector<HTMLInputElement>('[data-dm-builder-class]');
+      if (input) input.value = builderClassInput;
+      return;
+    }
     const linkUrlInput = target.closest<HTMLInputElement>('[data-dm-rich-link-url]');
     if (linkUrlInput) {
       const editor = root.querySelector<HTMLElement>('[data-dm-richtext]');
@@ -13836,6 +13835,8 @@ function setupDelegation() {
   // Input handler (color pickers, comment textarea, layer search)
   root.addEventListener('input', (e) => {
     const target = e.target as HTMLElement;
+    const builderClass = target.closest<HTMLInputElement>('[data-dm-builder-class]');
+    if (builderClass) { builderClassInput = builderClass.value; return; }
 
     // Changes-tab search input — live-filter the list as the user types.
     const changesSearchInput = target.closest<HTMLInputElement>('[data-dm-changes-search]');
