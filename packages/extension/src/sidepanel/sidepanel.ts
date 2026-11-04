@@ -6775,27 +6775,29 @@ function renderMcpStatus(): string {
 }
 
 function renderHeader(): string {
-  const domain = pinnedDomain ? '<span style="font-size:11px;color:var(--dm-text-secondary);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeAttr(pinnedDomain) + '</span>' : '';
+  const domain = pinnedDomain ? '<span style="font-size:11px;color:var(--dm-text-secondary);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeAttr(pinnedDomain) + '">' + escapeAttr(pinnedDomain) + '</span>' : '';
   const themeIcon = resolvedTheme === 'dark' ? 'sun' : 'moon';
+  const iconButton = (action: string, title: string, iconName: keyof typeof icons) =>
+    '<button class="dm-header-icon" type="button" data-dm-action="' + action + '" title="' + title + '" aria-label="' + title + '">' + icon(iconName, 15) + '</button>';
+  const menuButton = (action: string, title: string, iconName: keyof typeof icons) =>
+    '<button type="button" class="dm-more-menu-item" data-dm-action="' + action + '">' + icon(iconName, 15) + '<span>' + title + '</span></button>';
+  const floatingActions = !launchCapabilities.floating ? '' : isPip
+    ? menuButton('pip-unpin', 'Unpin floating window', 'pictureInPicture2') +
+      menuButton('pip-dock-back', 'Dock back to side panel', 'panelRight')
+    : isPopout
+      ? (pipAvailable ? menuButton('pip-pin', 'Pin window on top', 'pictureInPicture2') : '') +
+        menuButton('dock-back', 'Dock back to side panel', 'panelRight')
+      : menuButton('pop-out', 'Open floating window', 'externalLink');
   return '<div class="dm-panel-header" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dm-separator-strong);flex-shrink:0;background:var(--dm-bg);position:sticky;top:0;z-index:10;">' +
-    domain + (IS_SAFARI ? '<span title="Safari Web Inspector" style="font-size:10px;color:var(--dm-text-dim);">v' + APP_VERSION + ' · Safari</span>' : '') + '<div style="flex:1;"></div>' + renderMcpStatus() +
-    '<button data-dm-action="toggle-theme" title="Toggle theme" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon(themeIcon as keyof typeof icons, 15) + '</button>' +
-    '<button data-dm-action="contribute" title="Contribute" aria-label="Open contribute panel" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('heartHandshake', 15) + '</button>' +
-    '<button data-dm-action="help" title="Help" aria-label="Open help" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('helpCircle', 15) + '</button>' +
-    '<button data-dm-action="settings" title="Settings" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('settings', 16) + '</button>' +
-    // Docking controls (pop-out / pin-on-top / dock-back) sit last — they
-    // manage the panel window itself, not the page, so they read as a
-    // separate group after Settings. Safari remains Inspector-only.
-    (!launchCapabilities.floating ? '' : isPip
-      ? '<button data-dm-action="pip-unpin" title="Pinned on top — click to unpin back to the floating window" aria-label="Pinned on top — click to unpin back to the floating window" style="background:var(--dm-accent-bg);border:1px solid var(--dm-accent-border);border-radius:5px;color:var(--dm-accent);cursor:pointer;display:flex;padding:4px;">' + icon('pictureInPicture2', 15) + '</button>' +
-        '<button data-dm-action="pip-dock-back" title="' + (IS_FIREFOX ? 'Focus the page, then click Design Mode there to finish docking' : 'Dock back to the side panel') + '" aria-label="' + (IS_FIREFOX ? 'Prepare docking; finish from the page toolbar' : 'Dock back to side panel') + '" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('panelRight', 15) + '</button>'
-      : isPopout
-        ? (pipAvailable
-            ? '<button data-dm-action="pip-pin" title="Pin on top of every window" aria-label="Pin on top of every window" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('pictureInPicture2', 15) + '</button>'
-            : '') +
-          '<button data-dm-action="dock-back" title="' + (IS_FIREFOX ? 'Focus the page, then click Design Mode there to finish docking' : 'Dock back to the side panel') + '" aria-label="' + (IS_FIREFOX ? 'Prepare docking; finish from the page toolbar' : 'Dock back to side panel') + '" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('panelRight', 15) + '</button>'
-        : '<button data-dm-action="pop-out" title="Pop out into a floating window" aria-label="Pop out into a floating window" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('externalLink', 15) + '</button>') +
-    '</div>';
+    domain + (IS_SAFARI ? '<span title="Safari Web Inspector" style="font-size:10px;color:var(--dm-text-dim);">v' + APP_VERSION + ' · Safari</span>' : '') +
+    '<div style="flex:1;"></div>' + renderMcpStatus() +
+    iconButton('toggle-theme', 'Toggle theme', themeIcon as keyof typeof icons) +
+    iconButton('settings', 'Settings', 'settings') +
+    '<details class="dm-more-dropdown dm-header-more"><summary title="More options" aria-label="More options">' + icon('ellipsis', 17) + '</summary><div class="dm-more-menu">' +
+    floatingActions +
+    menuButton('help', 'Help', 'helpCircle') +
+    menuButton('contribute', 'Contribute', 'heartHandshake') +
+    '</div></details></div>';
 }
 
 function renderActionRow(): string {
@@ -6807,23 +6809,28 @@ function renderActionRow(): string {
   };
   const inspectTitle = commentMode ? 'Inspection paused while commenting' : inspecting ? 'Stop inspecting' : 'Start inspecting';
   const inspectStyle = bs(undefined, true) + (inspecting ? 'color:var(--dm-accent);background:var(--dm-accent-bg);border-color:var(--dm-accent-border);' : '');
-  return '<div class="dm-tools-row" style="display:flex;flex-wrap:wrap;align-items:center;gap:3px;padding:6px 12px;border-bottom:1px solid var(--dm-separator);flex-shrink:0;">' +
-    '<button type="button" data-dm-action="toggle-inspect" title="' + inspectTitle + '" aria-label="Inspect" aria-pressed="' + inspecting + '"' + (commentMode ? ' disabled' : '') + ' style="' + inspectStyle + '">' + icon('crosshair', 14) + '</button>' +
-    '<button data-dm-action="select-parent" title="Parent" style="' + bs() + '">' + icon('arrowUp', 14) + '</button>' +
-    '<button data-dm-action="select-child" title="Child" style="' + bs() + '">' + icon('arrowDown', 14) + '</button>' +
-    // Spacer + the spacer before Undo flank the middle cluster, centering it as
-    // the panel widens (Parent/Child pinned left, Undo/Redo pinned right).
-    '<div style="flex:1;"></div>' +
-    '<button data-dm-action="duplicate" title="Duplicate" style="' + bs() + '">' + icon('copy', 14) + '</button>' +
-    '<button data-dm-action="delete" title="Remove" style="' + bs('var(--dm-danger)') + '">' + icon('trash', 14) + '</button>' +
-    '<button data-dm-action="comment" title="Comment" style="' + bs() + '">' + icon('messageSquare', 14) + '</button>' +
-    '<button data-dm-action="region-comment" title="Annotate" style="' + bs(undefined, true) + ';' + (awaitingRegionDraw ? 'color:var(--dm-accent);background:var(--dm-accent-bg);border-color:var(--dm-accent-border);' : '') + '">' + icon('squareDashedMousePointer', 14) + '</button>' +
-    '<button data-dm-action="screenshot" title="Screenshot" style="' + bs(undefined, true) + '">' + icon('camera', 14) + '</button>' +
-    '<div style="width:1px;height:16px;background:var(--dm-separator-strong);margin:0 2px;"></div>' +
-    '<button data-dm-action="open-tokens" title="Design system" style="' + bs(undefined, true) + ';' + (tokensOpen ? 'color:var(--dm-accent);background:var(--dm-accent-bg);border-color:var(--dm-accent-border);' : '') + '">' + icon('swatchBook', 14) + '</button>' +
-    '<div style="flex:1;"></div>' +
-    '<button data-dm-action="undo" title="Undo (Ctrl+Z)" style="' + bs(undefined, true) + '">' + icon('undo', 14) + '</button>' +
-    '<button data-dm-action="redo" title="Redo (Ctrl+Shift+Z)" style="' + bs(undefined, true) + ';transform:scaleX(-1);">' + icon('undo', 14) + '</button></div>';
+  const toolButton = (action: string, title: string, iconName: keyof typeof icons, style: string, disabled = false) =>
+    '<button type="button" class="dm-toolbar-button" data-dm-action="' + action + '" title="' + title + '" aria-label="' + title + '"' +
+    (disabled ? ' disabled' : '') + ' style="' + style + '">' + icon(iconName, 14) + '</button>';
+  const menuButton = (action: string, title: string, iconName: keyof typeof icons, disabled = false) =>
+    '<button type="button" class="dm-more-menu-item" data-dm-action="' + action + '"' +
+    (disabled ? ' disabled' : '') + '>' + icon(iconName, 15) + '<span>' + title + '</span></button>';
+  return '<div class="dm-tools-row" style="display:flex;align-items:center;gap:4px;padding:7px 10px;border-bottom:1px solid var(--dm-separator);flex-shrink:0;">' +
+    '<div class="dm-toolbar-primary">' +
+    toolButton('toggle-inspect', inspectTitle, 'crosshair', inspectStyle, commentMode) +
+    toolButton('select-parent', 'Select parent', 'arrowUp', bs(), dis) +
+    toolButton('select-child', 'Select child', 'arrowDown', bs(), dis) +
+    toolButton('duplicate', 'Duplicate', 'copy', bs(), dis) +
+    toolButton('delete', 'Remove', 'trash', bs('var(--dm-danger)'), dis) +
+    toolButton('undo', 'Undo (Ctrl+Z)', 'undo', bs(undefined, true)) +
+    toolButton('redo', 'Redo (Ctrl+Shift+Z)', 'undo', bs(undefined, true) + ';transform:scaleX(-1);') +
+    '</div>' +
+    '<details class="dm-more-dropdown dm-toolbar-more"><summary title="More editing tools" aria-label="More editing tools">' + icon('ellipsis', 17) + '</summary><div class="dm-more-menu">' +
+    menuButton('comment', 'Comment', 'messageSquare', dis) +
+    menuButton('region-comment', 'Annotate region', 'squareDashedMousePointer') +
+    menuButton('screenshot', 'Screenshot', 'camera') +
+    menuButton('open-tokens', 'Design system', 'swatchBook') +
+    '</div></details></div>';
 }
 
 function renderCommentCard(): string {
