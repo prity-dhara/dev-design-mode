@@ -12,7 +12,11 @@ function getDestination(targetId?: string, position: InsertPosition = 'after'): 
   const target = targetId ? getElementById(targetId) : document.body;
   if (!target || target.closest('[data-dm-builder-overlay]')) return null;
   if (target === document.body) return { target, position: 'inside' };
-  if (position === 'inside' && INVALID_PARENTS.has(target.tagName)) return null;
+  // Text and void elements cannot contain children. Insert the new element
+  // as a sibling instead, preserving the surrounding div/section.
+  if (position === 'inside' && INVALID_PARENTS.has(target.tagName)) {
+    return target.parentElement ? { target, position: 'after' } : null;
+  }
   if (position !== 'inside' && !target.parentElement) return null;
   return { target, position };
 }
