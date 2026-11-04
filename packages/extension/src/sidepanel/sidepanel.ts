@@ -8210,9 +8210,9 @@ function renderDesignTab(): string {
   // resolves repeat() into a space-separated list of pixel track sizes;
   // handle authored repeat() too, without confusing minmax() whitespace.
   const gridColumnsCss = (s.gridTemplateColumns || '').trim();
-  const authoredRepeat = gridColumnsCss.match(/^repeat\\(\\s*(\\d+)\\s*,/i);
+  const authoredRepeat = gridColumnsCss.match(/^repeat\(\s*(\d+)\s*,/i);
   const gridTracks = gridColumnsCss && gridColumnsCss !== 'none'
-    ? gridColumnsCss.match(/(?:[^\\s(]+\\([^)]*\\)|[^\\s]+)/g) || []
+    ? gridColumnsCss.match(/(?:[^\s(]+\([^)]*\)|[^\s]+)/g) || []
     : [];
   const inferredGridColumns = authoredRepeat
     ? Number(authoredRepeat[1]) : gridTracks.length;
