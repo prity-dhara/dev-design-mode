@@ -8206,8 +8206,39 @@ function renderDesignTab(): string {
       '</div>'
     : '';
 
+  // Compact grid tracks control. Computed grid-template-columns typically
+  // resolves repeat() into a space-separated list of pixel track sizes;
+  // handle authored repeat() too, without confusing minmax() whitespace.
+  const gridColumnsCss = (s.gridTemplateColumns || '').trim();
+  const authoredRepeat = gridColumnsCss.match(/^repeat\\(\\s*(\\d+)\\s*,/i);
+  const gridTracks = gridColumnsCss && gridColumnsCss !== 'none'
+    ? gridColumnsCss.match(/(?:[^\\s(]+\\([^)]*\\)|[^\\s]+)/g) || []
+    : [];
+  const inferredGridColumns = authoredRepeat
+    ? Number(authoredRepeat[1]) : gridTracks.length;
+  const gridColumnQuickControls = isGrid
+    ? '<div class="dm-field" style="margin-bottom:3px;">' +
+        '<label class="dm-field-label">Grid columns' +
+          (inferredGridColumns > 0 ? ' · ' + inferredGridColumns + ' current' : '') +
+        '</label>' +
+        '<div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;">' +
+          [1,2,3,4,5,6].map(n =>
+            '<button type="button" data-dm-prop="gridTemplateColumns" data-dm-value="repeat(' + n + ', minmax(0, 1fr))"' +
+              ' title="Set ' + n + ' equal grid columns on this selected element"' +
+              ' aria-label="Set grid to ' + n + ' columns" aria-pressed="' + (inferredGridColumns === n) + '"' +
+              ' style="height:30px;border-radius:5px;border:1px solid ' +
+                (inferredGridColumns === n ? 'var(--dm-accent-border)' : 'var(--dm-btn-border)') +
+              ';background:' + (inferredGridColumns === n ? 'var(--dm-accent-bg)' : 'var(--dm-btn-bg)') +
+              ';color:' + (inferredGridColumns === n ? 'var(--dm-accent)' : 'var(--dm-text-secondary)') +
+              ';cursor:pointer;font-size:11px;font-weight:600;">' + n + '</button>').join('') +
+        '</div>' +
+        '<div style="font-size:10px;color:var(--dm-text-dim);margin-top:5px;">Equal-width columns on this grid only. Check tablet and mobile layouts after changing.</div>' +
+      '</div>'
+    : '';
+
   const layoutContent =
     layoutModeRow(s) + sp() +
+    gridColumnQuickControls + (isGrid ? sp() : '') +
     // W (5) + aspect (2) + H (5). The standalone "resize to content"
     // button is gone \u2014 Hug mode in each size input owns that intent now.
     '<div class="dm-grid-12 dm-size-row">' +
