@@ -643,7 +643,7 @@ let remRootPx = 16;
 let nudgeAmount = 10;
 // App-icon cursor on the inspected page while the panel is open. The
 // content script reads the same key via browser.storage.onChanged.
-let customCursor = true;
+let customCursor = false;
 let launchSurface: LaunchSurface = DEFAULT_LAUNCH_SURFACE;
 let inspectorError = '';
 let inspectorEpoch = 0;
@@ -10041,12 +10041,6 @@ function renderSettingsView(): string {
     '<input type="text" data-dm-setting="nudge-amount" data-dm-numeric="1" inputmode="decimal" value="' + escapeAttr(String(nudgeAmount)) + '" style="width:64px;padding:6px 8px;background:var(--dm-input-bg);border:1px solid var(--dm-input-border);border-radius:5px;color:var(--dm-text);font-family:inherit;font-size:11px;"/>' +
     '<span style="font-size:10px;color:var(--dm-text-dim);">px</span>' +
     '</div></div>' +
-    '<div style="' + sS + '"><div style="' + sT + '">Page cursor</div>' +
-    '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Show the Dev Agent icon as the mouse cursor on the page while the panel is open.</div>' +
-    '<div style="display:flex;gap:4px;">' +
-    '<button data-dm-custom-cursor="on" style="' + (customCursor ? activeBtn : inactiveBtn) + '">On</button>' +
-    '<button data-dm-custom-cursor="off" style="' + (!customCursor ? activeBtn : inactiveBtn) + '">Off</button>' +
-    '</div></div>' +
     (!launchCapabilities.floating ? '' :
     '<div style="' + sS + '"><div style="' + sT + '">Launch</div>' +
     '<div style="font-size:10px;color:var(--dm-text-dim);margin-bottom:8px;">Where the toolbar icon and Alt+D open Dev Agent. Pin on top starts a floating opener — your browser needs a click in that window to pin.</div>' +
@@ -11186,7 +11180,7 @@ function setupDelegation() {
           overlayPaddingColor = OVERLAY_PADDING_DEFAULT;
           nudgeAmount = 10;
           inputUnit = 'px';
-          customCursor = true;
+          customCursor = false;
           launchSurface = DEFAULT_LAUNCH_SURFACE;
           pipSavedSize = null;
           browser.storage?.local?.remove?.([
