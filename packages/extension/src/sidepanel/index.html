@@ -1455,6 +1455,24 @@
       .dm-navigation [data-dm-tab], #dm-copy-prompt-btn,
       #dm-send-agent-btn { transition: none !important; }
     }
+
+    /* Compact toolbar revision: preserve actions in accessible overflow menus. */
+    .dm-panel-header { z-index: 30 !important; }
+    .dm-tools-row { position: relative; z-index: 20; flex-wrap: nowrap !important; min-width: 0; }
+    .dm-header-icon { background: none; border: 1px solid transparent; color: var(--dm-text-secondary); cursor: pointer; padding: 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; flex: 0 0 auto; }
+    .dm-header-icon:hover { background: var(--dm-bg-tertiary); color: var(--dm-text); }
+    .dm-toolbar-primary { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: space-between; gap: 3px; }
+    .dm-toolbar-button { width: 29px; height: 29px; min-width: 0; flex: 0 1 29px; }
+    .dm-more-dropdown { position: relative; flex: 0 0 auto; }
+    .dm-more-dropdown > summary { list-style: none; display: flex; align-items: center; justify-content: center; width: 29px; height: 29px; border: 1px solid var(--dm-btn-border); border-radius: 6px; background: var(--dm-btn-bg); color: var(--dm-text-secondary); cursor: pointer; }
+    .dm-more-dropdown > summary::-webkit-details-marker { display: none; }
+    .dm-more-dropdown[open] > summary, .dm-more-dropdown > summary:hover { color: var(--dm-accent); border-color: var(--dm-accent-border); background: var(--dm-accent-bg); }
+    .dm-more-menu { position: absolute; top: calc(100% + 8px); right: 0; min-width: 192px; padding: 5px; display: flex; flex-direction: column; gap: 2px; background: var(--dm-bg-secondary); border: 1px solid var(--dm-separator-strong); border-radius: 9px; box-shadow: 0 12px 32px rgba(0,0,0,.36); z-index: 50; }
+    .dm-more-menu-item { display: flex; align-items: center; gap: 10px; min-height: 34px; width: 100%; padding: 7px 9px; color: var(--dm-text-secondary); font: inherit; font-size: 11px; text-align: left; white-space: nowrap; background: transparent; border: 0; border-radius: 5px; cursor: pointer; }
+    .dm-more-menu-item:hover { background: var(--dm-bg-tertiary); color: var(--dm-text); }
+    .dm-more-menu-item:disabled { opacity: .4; cursor: not-allowed; }
+    .dm-more-dropdown > summary:focus-visible, .dm-more-menu-item:focus-visible, .dm-header-icon:focus-visible { outline: 2px solid var(--dm-accent); outline-offset: 2px; }
+    @media (max-width: 350px) { .dm-toolbar-button { flex-basis: 25px; width: 25px; height: 28px; } .dm-toolbar-primary { gap: 2px; } .dm-tools-row { gap: 3px !important; padding-left: 7px !important; padding-right: 7px !important; } }
   </style>
 </head>
 <body>
