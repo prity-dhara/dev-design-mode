@@ -103,4 +103,6 @@ try {
 
 console.log(safari
   ? '\n✓ Safari build complete! Load dist-safari/ in Safari Settings → Developer → Add Temporary Extension.\n'
-  : '\n✓ Build complete! Load dist/ in chrome://extensions (Chrome) or about:debugging (Firefox)\n');
+  : firefox
+  ? '\n✓ Firefox build complete! Load dist-firefox/ via about:debugging.\n'
+  : '\n✓ Chrome build complete! Load dist/ via chrome://extensions.\n');
