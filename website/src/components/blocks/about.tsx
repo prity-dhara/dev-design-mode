@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { withNavRef } from "@/lib/nav-ref";
 
-const REPO_URL = withNavRef("https://github.com/SandeepBaskaran/design-mode");
+const REPO_URL = withNavRef("https://github.com/prity-dhara/dev-design-mode");
 
 // Exported separately so the page can wrap it in <Background variant="bottom">.
 export function WhyThisExists() {
@@ -13,7 +13,7 @@ export function WhyThisExists() {
         title="Why this exists"
         paragraphs={[
           "Screenshots and prose are useful for broad direction, but they often lose selectors, computed values and the relationship between the intended change and the rendered page.",
-          "Design Mode lets you make the intended change on the rendered page, records a structured specification, and hands it to a coding agent as Markdown or through MCP. The agent still has to find the source, implement the change and return a diff for review.",
+          "Dev Agent lets you make the intended change on the rendered page, records a structured specification, and hands it to a coding agent as Markdown or through MCP. The agent still has to find the source, implement the change and return a diff for review.",
           "Built in the open under MIT. Read the source, file an issue, or open a PR.",
         ]}
         ctaButton={{
