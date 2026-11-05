@@ -1,6 +1,5 @@
 import http from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { ASSET_UPLOAD_PATH, MAX_ASSET_BYTES, saveUploadedAsset } from './asset-upload.js';
 import { attachWebSocketServer, isExtensionConnected, stopWebSocketServer } from './websocket-server.js';
 import { executeLocalTool, type ToolDispatch, type ToolExtra, type ToolResult } from './tools.js';
 
@@ -90,44 +89,6 @@ async function handleOwnerHttp(req: http.IncomingMessage, res: http.ServerRespon
       webSocketToken,
     };
     sendJson(res, 200, health);
-    return;
-  }
-
-  if (url.pathname === ASSET_UPLOAD_PATH) {
-    const origin = req.headers.origin || '';
-    if (origin && !/^(chrome-extension|moz-extension):\/\/[^/]+$/.test(origin)) {
-      sendText(res, 403, 'extension origin required');
-      return;
-    }
-    if (origin) {
-      res.setHeader('access-control-allow-origin', origin);
-      res.setHeader('vary', 'Origin');
-      res.setHeader('access-control-allow-methods', 'POST, OPTIONS');
-      res.setHeader('access-control-allow-headers', 'content-type, x-design-mode-token');
-    }
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204); res.end(); return;
-    }
-    if (req.method !== 'POST' || req.headers['x-design-mode-token'] !== webSocketToken) {
-      sendText(res, 403, 'local companion authentication required');
-      return;
-    }
-    try {
-      // Base64 expands by 4/3, with a small allowance for the JSON envelope.
-      const chunks: Buffer[] = [];
-      let total = 0;
-      for await (const chunk of req) {
-        const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        total += part.length;
-        if (total > Math.ceil(MAX_ASSET_BYTES * 4 / 3) + 8192) throw new Error('Upload exceeds 8 MB.');
-        chunks.push(part);
-      }
-      const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-      const saved = await saveUploadedAsset({ name: body?.name, data: body?.data });
-      sendJson(res, 200, saved);
-    } catch (err) {
-      sendJson(res, 400, { error: err instanceof Error ? err.message : 'Image upload failed' });
-    }
     return;
   }
 
