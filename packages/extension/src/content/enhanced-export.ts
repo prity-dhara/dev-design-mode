@@ -244,9 +244,8 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
   const tokensUsed = new Set<string>();
 
   const lines: string[] = [];
-  const title = (document.title || '').trim() || 'untitled';
-  lines.push(`# Visual changes — ${title}`);
-  lines.push(`<${window.location.href}>`);
+  // One page pointer is enough; avoid repeating the document title and URL.
+  lines.push(`Page: ${window.location.href}`);
 
   // Tokens-changed context — only included when the user has actually
   // modified at least one :root CSS variable in this session. Avoids
@@ -413,8 +412,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
 
   if (entries.length > 0) {
     lines.push('');
-    lines.push('## Element targets');
-    lines.push('Selectors describe the current browser DOM. Match each target in the project before editing; source hints are unverified.');
+    lines.push('## Targets');
     for (const entry of targets.values()) {
       const { ref, ctx } = entry;
       const path = ctx.selector || ctx.smartLabel;
