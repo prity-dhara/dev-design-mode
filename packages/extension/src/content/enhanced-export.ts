@@ -260,9 +260,19 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
   // e.g. `- .btn-primary: color #000 → var(--accent); padding 8px → 12px`
   // Groups split at the element's move timestamp so the chronological list
   // preserves "edited → moved → edited again" for the agent.
+  // A clone that was subsequently moved is ONE final create operation.
+  // Keep the new node's final destination and its style/text edits, but do
+  // not ask the coding agent to first create it elsewhere then move it.
+  const createdIds = new Set(
+    domChanges.filter(d => d.action === 'duplicate' || d.action === 'insert').map(d => d.elementId),
+  );
+  const finalMoves = new Map<string, (typeof domChanges)[number]>();
+  for (const change of domChanges) {
+    if (change.action === 'move' && change.destination) finalMoves.set(change.elementId, change);
+  }
   const moveTimestamps = new Map<string, number>();
   for (const d of domChanges) {
-    if (d.action === 'move') moveTimestamps.set(d.elementId, d.timestamp);
+    if (d.action === 'move' && !createdIds.has(d.elementId)) moveTimestamps.set(d.elementId, d.timestamp);
   }
   const styleByElement = new Map<string, typeof styleChanges>();
   for (const c of styleChanges) {
@@ -340,6 +350,10 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     return describeStored(fallback);
   };
   for (const c of domChanges) {
+    // New elements are described once at their FINAL position, even if
+    // subsequently moved. The following style and text changes still
+    // reference the new element via its stable E-number.
+    if (c.action === 'move' && createdIds.has(c.elementId)) continue;
     const ctx = ensureCtx(c.elementId, c.selector);
     let line: string;
     if (c.action === 'move' && c.destination) {
@@ -348,7 +362,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
         ? `- ${label(c.elementId, ctx)}: Move from ${describeStored(c.origin)} to ${dest} (0-based child positions). Preserve its content and classes.`
         : `- ${label(c.elementId, ctx)}: Move to ${dest} (0-based child position). Preserve its content and classes.`;
     } else if ((c.action === 'duplicate' || c.action === 'insert') && c.destination) {
-      const destination = describeCurrent(getElementById(c.elementId), c.destination);
+      const destination = describeCurrent(getElementById(c.elementId), finalMoves.get(c.elementId)?.destination ?? c.destination);
       // Newly created nodes keep their own E-reference, so subsequent
       // text and appearance edits unambiguously apply to the new node.
       const origin = c.action === 'duplicate'
@@ -396,7 +410,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     entries.sort((a, b) => a.t - b.t);
     lines.push('');
     lines.push('## Changes');
-    if (textChanges.some(c => !c.attributeName)) {
+    if (entries.some(e => /\[-.*?-\]|\{\+.*?\+\}/.test(e.line))) {
       lines.push('> Text edits use git word-diff notation: `[-…-]` = removed, `{+…+}` = added, unmarked words are unchanged, and `…` marks unchanged text omitted for brevity. Apply the edit to the element — do not write the markers into the text.');
     }
     const hasBreakpoints = [...styleChanges, ...textChanges, ...domChanges]

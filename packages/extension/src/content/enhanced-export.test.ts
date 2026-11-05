@@ -94,3 +94,33 @@ test('duplicate instruction names the final destination and shares target with t
   assert.ok(result.includes('E1 text'));
   assert.ok(result.includes('- `E1`: `span.tag-new`'));
 });
+
+test('clone then move is one duplicate instruction at final position', () => {
+  const output = prompt([
+    change({ elementId: 'new-card', selector: 'h2.new-card', oldText: 'Old', newText: 'Tes Only',
+      attributeName: undefined, timestamp: 4 }),
+  ], [
+    { id: 'clone', elementId: 'new-card', selector: 'h2.new-card', action: 'duplicate',
+      tagName: 'h2', timestamp: 1, sourceSelector: 'section.original > h2.title',
+      destination: { parentSelector: 'section.original', index: 2 } },
+    { id: 'move', elementId: 'new-card', selector: 'h2.new-card', action: 'move',
+      tagName: 'h2', timestamp: 3,
+      origin: { parentSelector: 'section.original', index: 2 },
+      destination: { parentSelector: 'aside.sidebar', index: 0 } },
+  ]);
+  assert.ok(output.includes('Duplicate source (section.original > h2.title) into aside.sidebar[0]'));
+  assert.ok(!output.includes('Move from'));
+  assert.ok(!output.includes('section.original[2]'));
+  assert.ok(output.includes('- E1 text → "Tes Only"'));
+  assert.ok(!output.includes('Text edits use git word-diff'));
+});
+
+test('moving an existing element still records the original and final positions', () => {
+  const output = prompt([], [{
+    id: 'move-only', elementId: 'existing', selector: 'p.existing', action: 'move',
+    tagName: 'p', timestamp: 1,
+    origin: { parentSelector: 'section.hero', index: 1 },
+    destination: { parentSelector: 'aside.sidebar', index: 0 },
+  }]);
+  assert.ok(output.includes('Move from section.hero[1] to aside.sidebar[0]'));
+});
