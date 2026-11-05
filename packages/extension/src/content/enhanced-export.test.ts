@@ -47,8 +47,8 @@ test('active-route prompt labels href edits as attributes, retaining exact befor
     [' /before?q="quoted" ', ' /after?q="quoted" '],
   ]) {
     const result = prompt([change({ oldText, newText, breakpoint: 'mobile', viewportWidth: 390 })]);
-    assert.ok(result.includes(`- E1 href: ${JSON.stringify(oldText)} → ${JSON.stringify(newText)} _(mobile · 390px)_`));
-    assert.ok(!result.includes('E1 text'));
+    assert.ok(result.includes(`1. E1: Set href ${JSON.stringify(oldText)} → ${JSON.stringify(newText)} _(mobile · 390px)_`));
+    assert.ok(!result.includes('E1: Set text'));
     assert.ok(!result.includes('Text edits use git word-diff'));
   }
 });
@@ -59,11 +59,11 @@ test('mixed attribute and text edits preserve chronology, text word-diff and rew
     change({ id: 'text-diff', attributeName: undefined, oldText: 'Read the old guide', newText: 'Read the new guide', timestamp: 1 }),
     change({ id: 'text-rewrite', attributeName: undefined, oldText: 'Before', newText: 'After', timestamp: 2 }),
   ]);
-  assert.ok(result.includes('- E1 text: Read the [-old-]{+new+} guide'));
-  assert.ok(result.includes('- E1 text → "After"'));
+  assert.ok(result.includes('E1: Update text Read the [-old-]{+new+} guide'));
+  assert.ok(result.includes('E1: Set text → "After"'));
   assert.ok(result.includes('Text edits use git word-diff'));
-  assert.ok(result.indexOf('E1 text:') < result.indexOf('E1 text →'));
-  assert.ok(result.indexOf('E1 text →') < result.indexOf('E1 href:'));
+  assert.ok(result.indexOf('E1: Update text') < result.indexOf('E1: Set text →'));
+  assert.ok(result.indexOf('E1: Set text →') < result.indexOf('E1: Set href'));
 });
 
 test('copy prompt indexes the target selector once and skips no-op/resolved changes', () => {
@@ -75,7 +75,7 @@ test('copy prompt indexes the target selector once and skips no-op/resolved chan
   assert.ok(result.includes('## Element targets'));
   assert.ok(result.includes('- `E1`: `a.link`'));
   assert.equal(result.split('a.link').length - 1, 1);
-  assert.ok(result.includes('- E1 href: "/before" → "/after"'));
+  assert.ok(result.includes('1. E1: Set href "/before" → "/after"'));
   assert.ok(!result.includes('/two'));
   assert.ok(!result.includes('/same'));
 });
@@ -91,7 +91,7 @@ test('duplicate instruction names the final destination and shares target with t
     destination: { parentSelector: 'div.tag-list', index: 3 },
   }]);
   assert.ok(result.includes('Duplicate source (div.tag-list > span.tag:nth-of-type(3)) into div.tag-list[3] (0-based child position)'));
-  assert.ok(result.includes('E1 text'));
+  assert.ok(result.includes('E1: Set text'));
   assert.ok(result.includes('- `E1`: `span.tag-new`'));
 });
 
@@ -111,7 +111,7 @@ test('clone then move is one duplicate instruction at final position', () => {
   assert.ok(output.includes('Duplicate source (section.original > h2.title) into aside.sidebar[0]'));
   assert.ok(!output.includes('Move from'));
   assert.ok(!output.includes('section.original[2]'));
-  assert.ok(output.includes('- E1 text → "Tes Only"'));
+  assert.ok(output.includes('E1: Set text → "Tes Only"'));
   assert.ok(!output.includes('Text edits use git word-diff'));
 });
 
@@ -150,7 +150,7 @@ test('duplicate card then move and edit style and text exports one final creatio
   assert.ok(result.includes('background-color'));
   assert.ok(result.includes('#ff842e'));
   // One word changes, so the exporter preserves the shared "product" context.
-  assert.ok(result.includes('text: [-Old-]{+New+} product'));
+  assert.ok(result.includes('Update text [-Old-]{+New+} product'));
   assert.ok(!result.includes('Text edits use git word-diff'));
 });
 
@@ -176,7 +176,7 @@ test('text inside duplicated list item identifies its new parent, not the origin
     sourceSelector: 'ul.list > li:nth-of-type(4)',
     destination: { parentSelector: 'ul.list', index: 0 },
   }], [], { 'copied-item': duplicate, 'name-in-copy': nested });
-  assert.ok(output.includes('E1 (inside newly created E2) text → "Arun"'));
+  assert.ok(output.includes('E1 (inside newly created E2): Set text → "Arun"'));
   assert.ok(output.includes('E2: Duplicate source (ul.list > li:nth-of-type(4)) into ul.list[0]'));
   assert.ok(output.includes('## Element targets'));
 });
@@ -190,7 +190,7 @@ test('text without verified DOM ancestry does not claim it is inside a duplicate
     action: 'duplicate', tagName: 'li', timestamp: 1,
     sourceSelector: 'li.old', destination: { parentSelector: 'ul.list', index: 0 },
   }]);
-  assert.ok(output.includes('text → "Arun"'));
+  assert.ok(output.includes('Set text → "Arun"'));
   assert.ok(!output.includes('inside newly created'));
 });
 
@@ -223,4 +223,26 @@ test('ambiguous equal-value tokens are not substituted arbitrarily', () => {
   assert.ok(output.includes('background-color #fff → #123456'));
   assert.ok(!output.includes('var(--brand)'));
   assert.ok(!output.includes('var(--alternate)'));
+});
+
+test('copy prompt gives each duplicate, style, and text action its own numbered step', () => {
+  const result = prompt([
+    change({ id: 'button-label', elementId: 'new-button', selector: 'a.btn-copy',
+      attributeName: undefined, oldText: 'Click', newText: 'Continue', timestamp: 4 }),
+  ], [{
+    id: 'clone-button', elementId: 'new-button', selector: 'a.btn-copy',
+    action: 'duplicate', tagName: 'a', timestamp: 1, sourceSelector: 'a.btn-original',
+    destination: { parentSelector: 'div.actions', index: 2 },
+  }], [
+    { id: 'margin', elementId: 'new-button', selector: 'a.btn-copy',
+      property: 'marginTop', oldValue: '0px', newValue: '1rem', timestamp: 2 },
+    { id: 'color', elementId: 'new-button', selector: 'a.btn-copy',
+      property: 'backgroundColor', oldValue: '#fff', newValue: '#161412', timestamp: 3 },
+  ]);
+  assert.ok(result.includes('1. E1: Duplicate source (a.btn-original) into div.actions[2]'));
+  assert.ok(result.includes('2. E1: Set margin-top 0px → 1rem'));
+  assert.ok(result.includes('3. E1: Set background-color #fff → #161412'));
+  assert.ok(result.includes('4. E1: Set text → "Continue"'));
+  assert.ok(!result.includes('margin-top 0px → 1rem; background-color'));
+  assert.equal((result.match(/Duplicate source/g) || []).length, 1);
 });

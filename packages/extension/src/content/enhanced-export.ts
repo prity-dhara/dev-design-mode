@@ -267,10 +267,8 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
   type Entry = { t: number; line: string };
   const entries: Entry[] = [];
 
-  // Style changes — group consecutive edits to the same element on one line.
-  // e.g. `- .btn-primary: color #000 → var(--accent); padding 8px → 12px`
-  // Groups split at the element's move timestamp so the chronological list
-  // preserves "edited → moved → edited again" for the agent.
+  // Each change is one numbered instruction in the final Markdown.
+  // Retain compact element references and chronological ordering.
   // A clone that was subsequently moved is ONE final create operation.
   // Keep the new node's final destination and its style/text edits, but do
   // not ask the coding agent to first create it elsewhere then move it.
@@ -280,17 +278,6 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
   const finalMoves = new Map<string, (typeof domChanges)[number]>();
   for (const change of domChanges) {
     if (change.action === 'move' && change.destination) finalMoves.set(change.elementId, change);
-  }
-  const moveTimestamps = new Map<string, number>();
-  for (const d of domChanges) {
-    if (d.action === 'move' && !createdIds.has(d.elementId)) moveTimestamps.set(d.elementId, d.timestamp);
-  }
-  const styleByElement = new Map<string, typeof styleChanges>();
-  for (const c of styleChanges) {
-    const moveT = moveTimestamps.get(c.elementId);
-    const key = moveT !== undefined && c.timestamp > moveT ? c.elementId + ' post-move' : c.elementId;
-    if (!styleByElement.has(key)) styleByElement.set(key, []);
-    styleByElement.get(key)!.push(c);
   }
   // Each element receives one short reference. Include its exact selector
   // once in the target index rather than on every modification line.
@@ -328,20 +315,17 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     return ' (inside newly created ' + parentRef + ')';
   };
 
-  for (const list of styleByElement.values()) {
-    const ctx = ensureCtx(list[0].elementId, list[0].selector);
-    const decls = list
-      .map(c => {
-        const oldShort = shortenValue(tokenize(c.oldValue, tokenLookup, tokensUsed));
-        const newShort = shortenValue(tokenize(c.newValue, tokenLookup, tokensUsed));
-        // Motion state-variants carry a trigger tag so the agent knows the
-        // change is conditional (`on hover`) rather than an unconditional edit.
-        const trigger = c.state ? ` (${MOTION_STATE_LABEL[c.state] || c.state})` : '';
-        return `${camelToKebab(c.property)} ${oldShort} → ${newShort}${trigger}`;
-      })
-      .join('; ');
-    const earliest = Math.min(...list.map(c => c.timestamp));
-    entries.push({ t: earliest, line: `- ${label(list[0].elementId, ctx)}${nestedInCreated(list[0].elementId)}: ${decls}${breakpointTag(list)}` });
+  // One CSS property per instruction: no long semicolon-separated paragraphs.
+  // Move/duplicate intent is still resolved to its final destination below.
+  for (const c of styleChanges) {
+    const ctx = ensureCtx(c.elementId, c.selector);
+    const before = shortenValue(tokenize(c.oldValue, tokenLookup, tokensUsed));
+    const after = shortenValue(tokenize(c.newValue, tokenLookup, tokensUsed));
+    const trigger = c.state ? ` (${MOTION_STATE_LABEL[c.state] || c.state})` : '';
+    entries.push({
+      t: c.timestamp,
+      line: `${label(c.elementId, ctx)}${nestedInCreated(c.elementId)}: Set ${camelToKebab(c.property)} ${before} → ${after}${trigger}${breakpointTag([c])}`,
+    });
   }
 
   // Text changes ship as a compact inline word-diff (`~~removed~~ **added**`,
@@ -353,7 +337,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     if (c.attributeName) {
       entries.push({
         t: c.timestamp,
-        line: `- ${label(c.elementId, ctx)}${nestedInCreated(c.elementId)} ${c.attributeName}: ${JSON.stringify(c.oldText)} → ${JSON.stringify(c.newText)}` + breakpointTag([c]),
+        line: `${label(c.elementId, ctx)}${nestedInCreated(c.elementId)}: Set ${c.attributeName} ${JSON.stringify(c.oldText)} → ${JSON.stringify(c.newText)}` + breakpointTag([c]),
       });
       continue;
     }
@@ -366,7 +350,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
       : inlineTextDiff(oldText, newText);
     entries.push({
       t: c.timestamp,
-      line: (diff !== null ? `- ${head} text: ${diff}` : `- ${head} text → "${newText}"`) + breakpointTag([c]),
+      line: (diff !== null ? `${head}: Update text ${diff}` : `${head}: Set text → ${JSON.stringify(newText)}`) + breakpointTag([c]),
     });
   }
 
@@ -394,8 +378,8 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     if (c.action === 'move' && c.destination) {
       const dest = describeCurrent(getElementById(c.elementId), c.destination);
       line = c.origin
-        ? `- ${label(c.elementId, ctx)}: Move from ${describeStored(c.origin)} to ${dest} (0-based child positions). Preserve its content and classes.`
-        : `- ${label(c.elementId, ctx)}: Move to ${dest} (0-based child position). Preserve its content and classes.`;
+        ? `${label(c.elementId, ctx)}: Move from ${describeStored(c.origin)} to ${dest} (0-based child positions). Preserve its content and classes.`
+        : `${label(c.elementId, ctx)}: Move to ${dest} (0-based child position). Preserve its content and classes.`;
     } else if ((c.action === 'duplicate' || c.action === 'insert') && c.destination) {
       const destination = describeCurrent(getElementById(c.elementId), finalMoves.get(c.elementId)?.destination ?? c.destination);
       // Newly created nodes keep their own E-reference, so subsequent
@@ -403,16 +387,16 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
       const origin = c.action === 'duplicate'
         ? (c.sourceSelector ? `Duplicate source (${c.sourceSelector}) into` : 'Duplicate element into')
         : 'Insert element at';
-      line = `- ${label(c.elementId, ctx)}: ${origin} ${destination} (0-based child position). This is the new element; apply its following edits here.`;
+      line = `${label(c.elementId, ctx)}: ${origin} ${destination} (0-based child position). Apply later edits to this new element.`;
     } else if (c.action === 'delete' && c.origin) {
-      line = `- ${label(c.elementId, ctx)}: Delete from ${describeStored(c.origin)}.`;
+      line = `${label(c.elementId, ctx)}: Delete from ${describeStored(c.origin)}.`;
     } else {
       const verb =
         c.action === 'delete' ? 'Delete element' :
         c.action === 'duplicate' ? 'Duplicate element' :
         c.action === 'insert' ? 'Insert element' :
         c.action === 'move' ? 'Move element' : c.action;
-      line = `- ${label(c.elementId, ctx)}: ${verb}`;
+      line = `${label(c.elementId, ctx)}: ${verb}`;
     }
     entries.push({ t: c.timestamp, line: line + breakpointTag([c]) });
   }
@@ -445,7 +429,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     entries.sort((a, b) => a.t - b.t);
     lines.push('');
     lines.push('## Changes');
-    if (entries.some(e => /\[-.*?-\]|\{\+.*?\+\}/.test(e.line))) {
+    if (textChanges.filter(c => !c.attributeName).length > 1 && entries.some(e => /\[-.*?-\]|\{\+.*?\+\}/.test(e.line))) {
       lines.push('> Text edits use git word-diff notation: `[-…-]` = removed, `{+…+}` = added, unmarked words are unchanged, and `…` marks unchanged text omitted for brevity. Apply the edit to the element — do not write the markers into the text.');
     }
     const hasBreakpoints = [...styleChanges, ...textChanges, ...domChanges]
@@ -453,7 +437,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     if (hasBreakpoints) {
       lines.push('_A trailing `(breakpoint · width)` marks the responsive width the edit was made at — scope it to that breakpoint (e.g. a media query). Untagged changes are desktop._');
     }
-    for (const e of entries) lines.push(e.line);
+    for (const [index, e] of entries.entries()) lines.push(`${index + 1}. ${e.line}`);
   }
 
   // Comments section — only if any pinned notes exist. Inline a source
