@@ -149,6 +149,7 @@ test('duplicate card then move and edit style and text exports one final creatio
   assert.ok(!result.includes('section.featured[2]'));
   assert.ok(result.includes('background-color'));
   assert.ok(result.includes('#ff842e'));
-  assert.ok(result.includes('text → "New product"'));
+  // One word changes, so the exporter preserves the shared "product" context.
+  assert.ok(result.includes('text: [-Old-]{+New+} product'));
   assert.ok(!result.includes('Text edits use git word-diff'));
 });
