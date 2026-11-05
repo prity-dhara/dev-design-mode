@@ -36,13 +36,15 @@ export function buildDomTree(root: HTMLElement = document.body): DomNode[] {
 
   function visit(node: HTMLElement, depth: number, parentId: string | null) {
     if (SKIP_TAGS.has(node.tagName)) return;
-    if (DM_IDS.has(node.id)) return;
-    if (node.id?.startsWith('dm-')) return;
+    // SVG elements can expose an SVGAnimatedString instead of a string id.
+    const domId = node.getAttribute('id') || '';
+    if (DM_IDS.has(domId)) return;
+    if (domId.startsWith('dm-')) return;
     if (node.classList?.contains('dm-comment-pin')) return;
 
     const id = getOrAssignId(node);
     let name = node.tagName.toLowerCase();
-    if (node.id) name += `#${node.id}`;
+    if (domId) name += `#${domId}`;
     else if (node.className && typeof node.className === 'string') {
       // Prefer the first non-marker class for the layer label so duplicates
       // still show their original class (e.g. `.card-1`) instead of the
@@ -219,7 +221,7 @@ export function isPageContentSealed(): boolean {
   for (const el of Array.from(body.querySelectorAll('*')) as HTMLElement[]) {
     if (framePart.has(el)) continue;
     if (SKIP_TAGS.has(el.tagName) || el.tagName === 'BR' || el.tagName === 'HR') continue;
-    if (el.id?.startsWith('dm-') || el.closest('[id^="dm-"]')) continue;
+    if ((el.getAttribute('id') || '').startsWith('dm-') || el.closest('[id^="dm-"]')) continue;
     if (typeof el.className === 'string' && /(^|\s)dm-/.test(el.className)) continue;
     const r = el.getBoundingClientRect();
     if (r.width > 8 && r.height > 8) return false;
