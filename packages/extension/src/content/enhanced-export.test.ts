@@ -9,13 +9,13 @@ const code = transformSync(readFileSync(new URL('./enhanced-export.ts', import.m
   loader: 'ts', format: 'cjs',
 }).code;
 
-function prompt(changes: TextChange[], domChanges: Record<string, unknown>[] = [], styleChanges: Record<string, unknown>[] = []): string {
+function prompt(changes: TextChange[], domChanges: Record<string, unknown>[] = [], styleChanges: Record<string, unknown>[] = [], elements: Record<string, unknown> = {}): string {
   const dependencies: Record<string, unknown> = {
-    './helpers': { getElementById: () => null },
+    './helpers': { getElementById: (id: string) => elements[id] ?? null, generateSelector: (el: any) => el.selector, describeElement: (el: any) => el.tagName?.toLowerCase() ?? 'element' },
     './change-tracker': {
       getStyleChanges: () => styleChanges, getTextChanges: () => changes, getDomChanges: () => domChanges,
     },
-    './source-detection': {},
+    './source-detection': { getSourceLocation: () => null },
     './root-var-store': { getTokenEdits: () => [] },
     './token-engine': { getTokenIndex: () => ({ tokens: [] }) },
   };
@@ -152,4 +152,44 @@ test('duplicate card then move and edit style and text exports one final creatio
   // One word changes, so the exporter preserves the shared "product" context.
   assert.ok(result.includes('text: [-Old-]{+New+} product'));
   assert.ok(!result.includes('Text edits use git word-diff'));
+});
+
+test('text inside duplicated list item identifies its new parent, not the original item', () => {
+  const duplicate: any = {
+    tagName: 'LI', id: '', className: 'flex items-center',
+    selector: 'ul.list > li:nth-of-type(1)',
+    parentElement: null,
+    contains(child: any) { return child === nested; },
+  };
+  const nested: any = {
+    tagName: 'SPAN', id: '', className: 'truncate font-semibold',
+    selector: 'ul.list > li:nth-of-type(1) > span.truncate',
+    parentElement: duplicate,
+  };
+  const output = prompt([
+    change({ id: 'name-edit', elementId: 'name-in-copy',
+      selector: 'ul.list > li:nth-of-type(1) > span.truncate',
+      attributeName: undefined, oldText: 'John', newText: 'Arun', timestamp: 2 }),
+  ], [{
+    id: 'new-list-item', elementId: 'copied-item', selector: 'ul.list > li:nth-of-type(1)',
+    action: 'duplicate', tagName: 'li', timestamp: 1,
+    sourceSelector: 'ul.list > li:nth-of-type(4)',
+    destination: { parentSelector: 'ul.list', index: 0 },
+  }], [], { 'copied-item': duplicate, 'name-in-copy': nested });
+  assert.ok(output.includes('E1 (inside newly created E2) text → "Arun"'));
+  assert.ok(output.includes('E2: Duplicate source (ul.list > li:nth-of-type(4)) into ul.list[0]'));
+  assert.ok(output.includes('## Element targets'));
+});
+
+test('text without verified DOM ancestry does not claim it is inside a duplicate', () => {
+  const output = prompt([
+    change({ id: 'name-edit', elementId: 'existing-name', selector: 'span.existing',
+      attributeName: undefined, oldText: 'John', newText: 'Arun', timestamp: 2 }),
+  ], [{
+    id: 'new-list-item', elementId: 'copied-item', selector: 'li.new',
+    action: 'duplicate', tagName: 'li', timestamp: 1,
+    sourceSelector: 'li.old', destination: { parentSelector: 'ul.list', index: 0 },
+  }]);
+  assert.ok(output.includes('text → "Arun"'));
+  assert.ok(!output.includes('inside newly created'));
 });
