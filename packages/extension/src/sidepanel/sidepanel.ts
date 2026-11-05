@@ -615,9 +615,9 @@ let mcpAutoConnect = true;
 // Cloud / self-hosted MCP. Mode picks where the extension dials; the
 // other three are only meaningful when mode !== 'local'.
 type McpMode = 'local' | 'cloud' | 'self-hosted';
-let mcpMode: McpMode = 'cloud';
+let mcpMode: McpMode = 'local';
 let mcpCloudToken = '';
-let mcpCloudUrl = 'https://mcp.designmode.app';
+let mcpCloudUrl = '';
 let mcpCloudTenantId = '';
 let mcpCloudRegistering = false;
 let inspectorHoverColor = '#4F9EFF';
@@ -6768,7 +6768,7 @@ function mcpStatusDisplay(): { dotStyle: string; textColor: string; label: strin
       detail: isCloud
         ? (mcpCloudToken
             ? 'Cloud relay unreachable. Refresh to retry, or check the server URL + token below.'
-            : 'No cloud token yet. Click Connect to Cloud below.')
+            : 'Cloud is optional and needs your own configured relay. Choose Local for Codex.')
         : 'MCP not running. Start the server with `npm start --prefix packages/mcp-local`, then refresh.',
     };
   }
@@ -9849,13 +9849,13 @@ function renderChangesTab(): string {
 
 /* ── Settings View ── */
 // Renders the MCP Server settings card. Three modes: Local (today's
-// localhost server), Cloud (mcp.designmode.app), Self-hosted URL (user's
+// localhost server), Cloud (requires an independently configured relay), Self-hosted URL (user's
 // own Vercel deploy of @design-mode/mcp-cloud). The cloud mode card
 // shows a token chip + copy buttons for the agent's config snippet.
 function renderMcpServerCard(sS: string, sT: string, lS: string, activeBtn: string, inactiveBtn: string): string {
   const modeBtn = (m: McpMode, label: string) => '<button data-dm-mcp-mode="' + m + '" style="' + (mcpMode === m ? activeBtn : inactiveBtn) + '">' + label + '</button>';
   const modeRow = '<div style="display:flex;gap:4px;margin-bottom:8px;">' +
-    modeBtn('cloud', 'Cloud') + modeBtn('local', 'Local') + modeBtn('self-hosted', 'Self-hosted') +
+    modeBtn('local', 'Local') + modeBtn('cloud', 'Cloud') + modeBtn('self-hosted', 'Self-hosted') +
     '</div>';
 
   let body = '';
@@ -9880,7 +9880,8 @@ function renderMcpServerCard(sS: string, sT: string, lS: string, activeBtn: stri
 
     if (!hasToken) {
       body = urlField +
-        '<button data-dm-action="mcp-cloud-register" style="margin-top:8px;padding:8px 10px;background:var(--dm-accent-bg);border:1px solid var(--dm-accent-border);border-radius:6px;color:var(--dm-text);cursor:pointer;font-size:10px;font-family:inherit;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;"' + (mcpCloudRegistering ? ' disabled' : '') + '>' + icon('zap', 11) + (mcpCloudRegistering ? ' Connecting…' : ' Connect to Cloud') + '</button>' +
+        (!mcpCloudUrl ? '<div style="font-size:10px;color:var(--dm-text-secondary);line-height:1.5;">No Dev Agent cloud relay is configured. Use Local MCP or deploy your own relay first.</div>' : '') +
+        '<button data-dm-action="mcp-cloud-register" style="margin-top:8px;padding:8px 10px;background:var(--dm-accent-bg);border:1px solid var(--dm-accent-border);border-radius:6px;color:var(--dm-text);cursor:pointer;font-size:10px;font-family:inherit;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;"' + (mcpCloudRegistering || !mcpCloudUrl ? ' disabled' : '') + '>' + icon('zap', 11) + (mcpCloudRegistering ? ' Connecting…' : ' Connect to Cloud') + '</button>' +
         '<div style="font-size:9px;color:var(--dm-text-dimmer);margin-top:6px;line-height:1.4;">A device token is generated on the server. Copy the config, paste it into your agent (Claude Code, Cursor, VS Code, …), restart the agent.</div>';
     } else {
       // One reasonable, IDE-agnostic snippet. The `mcpServers` wrapper +
