@@ -293,6 +293,30 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     return entry.ref;
   };
 
+  // A nested text/style edit may belong to a newly duplicated parent,
+  // not to the pre-existing element with a similar CSS selector.
+  // Use actual live DOM ancestry, never infer this from nth-of-type paths.
+  const createdParents = domChanges.filter(c =>
+    c.action === 'duplicate' || c.action === 'insert',
+  );
+  const nestedInCreated = (elementId: string): string => {
+    const child = getElementById(elementId);
+    if (!child) return '';
+    let closest: { id: string; depth: number } | null = null;
+    for (const parentChange of createdParents) {
+      if (parentChange.elementId === elementId) continue;
+      const parent = getElementById(parentChange.elementId);
+      if (!parent || !parent.contains(child)) continue;
+      let depth = 0;
+      for (let current = child.parentElement; current && current !== parent; current = current.parentElement) depth++;
+      if (!closest || depth < closest.depth) closest = { id: parentChange.elementId, depth };
+    }
+    if (!closest) return '';
+    const parentChange = createdParents.find(c => c.elementId === closest!.id)!;
+    const parentRef = label(parentChange.elementId, ensureCtx(parentChange.elementId, parentChange.selector));
+    return ' (inside newly created ' + parentRef + ')';
+  };
+
   for (const list of styleByElement.values()) {
     const ctx = ensureCtx(list[0].elementId, list[0].selector);
     const decls = list
@@ -306,7 +330,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
       })
       .join('; ');
     const earliest = Math.min(...list.map(c => c.timestamp));
-    entries.push({ t: earliest, line: `- ${label(list[0].elementId, ctx)}: ${decls}${breakpointTag(list)}` });
+    entries.push({ t: earliest, line: `- ${label(list[0].elementId, ctx)}${nestedInCreated(list[0].elementId)}: ${decls}${breakpointTag(list)}` });
   }
 
   // Text changes ship as a compact inline word-diff (`~~removed~~ **added**`,
@@ -318,13 +342,13 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     if (c.attributeName) {
       entries.push({
         t: c.timestamp,
-        line: `- ${label(c.elementId, ctx)} ${c.attributeName}: ${JSON.stringify(c.oldText)} → ${JSON.stringify(c.newText)}` + breakpointTag([c]),
+        line: `- ${label(c.elementId, ctx)}${nestedInCreated(c.elementId)} ${c.attributeName}: ${JSON.stringify(c.oldText)} → ${JSON.stringify(c.newText)}` + breakpointTag([c]),
       });
       continue;
     }
     const oldText = (c.oldText || '').trim();
     const newText = (c.newText || '').trim();
-    const head = `${label(c.elementId, ctx)}`;
+    const head = `${label(c.elementId, ctx)}${nestedInCreated(c.elementId)}`;
     const wordCount = (s: string) => s.split(/\s+/).filter(Boolean).length;
     const diff = wordCount(oldText) > 400 || wordCount(newText) > 400
       ? null
