@@ -9,11 +9,11 @@ const code = transformSync(readFileSync(new URL('./enhanced-export.ts', import.m
   loader: 'ts', format: 'cjs',
 }).code;
 
-function prompt(changes: TextChange[], domChanges: Record<string, unknown>[] = []): string {
+function prompt(changes: TextChange[], domChanges: Record<string, unknown>[] = [], styleChanges: Record<string, unknown>[] = []): string {
   const dependencies: Record<string, unknown> = {
     './helpers': { getElementById: () => null },
     './change-tracker': {
-      getStyleChanges: () => [], getTextChanges: () => changes, getDomChanges: () => domChanges,
+      getStyleChanges: () => styleChanges, getTextChanges: () => changes, getDomChanges: () => domChanges,
     },
     './source-detection': {},
     './root-var-store': { getTokenEdits: () => [] },
@@ -123,4 +123,32 @@ test('moving an existing element still records the original and final positions'
     destination: { parentSelector: 'aside.sidebar', index: 0 },
   }]);
   assert.ok(output.includes('Move from section.hero[1] to aside.sidebar[0]'));
+});
+
+test('duplicate card then move and edit style and text exports one final creation', () => {
+  const result = prompt([
+    change({ id: 'text-card', elementId: 'card-copy', selector: 'article.card.copy > h3',
+      attributeName: undefined, oldText: 'Old product', newText: 'New product', timestamp: 5 }),
+  ], [
+    { id: 'clone-card', elementId: 'card-copy', selector: 'article.card.copy', action: 'duplicate',
+      tagName: 'article', sourceSelector: 'section.featured > article.card:nth-of-type(2)',
+      destination: { parentSelector: 'section.featured', index: 2 }, timestamp: 1 },
+    { id: 'move-card', elementId: 'card-copy', selector: 'article.card.copy', action: 'move',
+      tagName: 'article', origin: { parentSelector: 'section.featured', index: 2 },
+      destination: { parentSelector: 'aside.recommendations', index: 0 }, timestamp: 3 },
+  ], [
+    { id: 'bg-card', elementId: 'card-copy', selector: 'article.card.copy',
+      property: 'backgroundColor', oldValue: 'rgb(255, 255, 255)',
+      newValue: '#ff842e', timestamp: 4 },
+  ]);
+
+  assert.ok(result.includes('## Element targets'));
+  assert.ok(result.includes('Duplicate source (section.featured > article.card:nth-of-type(2)) into aside.recommendations[0]'));
+  assert.equal((result.match(/Duplicate source/g) || []).length, 1);
+  assert.ok(!result.includes('Move from section.featured'));
+  assert.ok(!result.includes('section.featured[2]'));
+  assert.ok(result.includes('background-color'));
+  assert.ok(result.includes('#ff842e'));
+  assert.ok(result.includes('text → "New product"'));
+  assert.ok(!result.includes('Text edits use git word-diff'));
 });
