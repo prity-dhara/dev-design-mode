@@ -2024,7 +2024,9 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
       requestAnimationFrame(() => highlightInsertedBuilderElement(id, kind));
       const parentId = el.parentElement ? getOrAssignId(el.parentElement) : '';
-      const nextSiblingId = el.nextElementSibling ? getOrAssignId(el.nextElementSibling) : null;
+      const nextSiblingId = el.nextElementSibling instanceof HTMLElement
+        ? getOrAssignId(el.nextElementSibling)
+        : null;
       undoStack.push({ kind: 'dom', action: 'duplicate', elementId: id, html: el.outerHTML, parentId, nextSiblingId });
       redoStack.length = 0;
       getChangesPayload().then(p => sendResponse({ ok: true, parentId, info: { ...buildElementInfo(el), element: undefined }, ...p, undoCount: undoStack.length, redoCount: redoStack.length }))
