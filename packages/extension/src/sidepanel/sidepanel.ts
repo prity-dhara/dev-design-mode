@@ -6836,7 +6836,6 @@ function renderHeader(): string {
     '<details class="dm-more-dropdown dm-header-more"><summary title="More options" aria-label="More options">' + icon('ellipsis', 17) + '</summary><div class="dm-more-menu">' +
     floatingActions +
     menuButton('help', 'Help', 'helpCircle') +
-    menuButton('contribute', 'Contribute', 'heartHandshake') +
     '</div></details></div>';
 }
 
@@ -10204,14 +10203,14 @@ function renderHelpView(): string {
     '<button data-dm-action="show-shortcuts" style="' + secondaryBtn + '">' + icon('keyboard', 12) + ' Keyboard shortcuts</button>' +
     '<div style="' + card + '">' +
     '<p style="margin:0 0 12px 0;font-size:12px;line-height:1.5;color:var(--dm-text-secondary);">Found a bug or want to request a feature? File it on GitHub — please include your Chrome version and repro steps.</p>' +
-    '<a href="https://github.com/SandeepBaskaran/design-mode/issues/new/choose" data-dm-help-target="issues" target="_blank" rel="noopener noreferrer" style="' + primaryBtn + '">Report an issue ' + icon('externalLink', 12) + '</a>' +
+    '<a href="https://github.com/prity-dhara/dev-design-mode/issues/new/choose" data-dm-help-target="issues" target="_blank" rel="noopener noreferrer" style="' + primaryBtn + '">Report an issue ' + icon('externalLink', 12) + '</a>' +
     '<div style="height:8px;"></div>' +
     '<button data-dm-action="copy-diagnostics" style="' + secondaryBtn + '">' + icon('copy', 12) + ' <span data-dm-copy-label>Copy diagnostics</span></button>' +
     '</div>' +
     '<div style="' + card + '"><div style="display:flex;flex-direction:column;gap:8px;">' +
-    '<a href="https://github.com/SandeepBaskaran/design-mode#readme" data-dm-help-target="readme" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">Read the docs ↗</a>' +
-    '<a href="https://github.com/SandeepBaskaran/design-mode/blob/main/PRIVACY.md" data-dm-help-target="privacy" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">Privacy ↗</a>' +
-    '<a href="mailto:hello@sandeepbaskaran.com" data-dm-help-target="email" style="' + linkStyle + '">Security disclosure ↗</a>' +
+    '<a href="https://github.com/prity-dhara/dev-design-mode#readme" data-dm-help-target="readme" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">Read the docs ↗</a>' +
+    '<a href="https://github.com/prity-dhara/dev-design-mode/blob/main/PRIVACY.md" data-dm-help-target="privacy" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">Privacy ↗</a>' +
+    '<a href="https://github.com/prity-dhara/dev-design-mode/security/advisories/new" data-dm-help-target="email" style="' + linkStyle + '">Security disclosure ↗</a>' +
     '</div></div>' +
     '</div>' +
     '<div style="margin-top:16px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Dev Agent v' + extensionVersion() + '</div></div>' +
@@ -10275,70 +10274,12 @@ function renderHoverGuideView(): string {
     '</div>';
 }
 
+// The original project's sponsorship/contribution overlay is intentionally
+// unavailable in Dev Agent. Keep the function as a migration-safe fallback.
 function renderContributeView(): string {
-  const card = 'background:var(--dm-bg-secondary);border:1px solid var(--dm-separator);border-radius:8px;padding:14px;';
-  const primaryBtn = 'display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px 12px;background:var(--dm-text);border:1px solid var(--dm-text);border-radius:6px;color:var(--dm-bg);cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;text-decoration:none;';
-  const rowBtn = 'display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;background:var(--dm-btn-bg);border:1px solid var(--dm-btn-border);border-radius:6px;color:var(--dm-text);cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;text-decoration:none;text-align:left;';
-  const rowIcon = 'display:flex;align-items:center;justify-content:center;color:var(--dm-text-secondary);flex-shrink:0;';
-  const rowText = 'flex:1;';
-  const rowExt = 'color:var(--dm-text-dimmer);display:flex;align-items:center;flex-shrink:0;';
-  const sectionLabel = 'font-size:10px;font-weight:600;letter-spacing:0.6px;color:var(--dm-text-dimmer);text-transform:uppercase;margin:0 0 8px 2px;';
-
-  const row = (iconName: keyof typeof icons, label: string, href: string) =>
-    '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="' + rowBtn + '">' +
-      '<span style="' + rowIcon + '">' + icon(iconName, 14) + '</span>' +
-      '<span style="' + rowText + '">' + label + '</span>' +
-      '<span style="' + rowExt + '">' + icon('externalLink', 11) + '</span>' +
-    '</a>';
-
-  const shareRow =
-    '<button data-dm-action="copy-share-text" style="' + rowBtn + '">' +
-      '<span style="' + rowIcon + '">' + icon('share2', 14) + '</span>' +
-      '<span style="' + rowText + '" data-dm-share-label>Share with your network</span>' +
-      '<span style="' + rowExt + '">' + icon('copy', 11) + '</span>' +
-    '</button>';
-
-  const sponsorBtn =
-    '<a href="https://github.com/sponsors/SandeepBaskaran" target="_blank" rel="noopener noreferrer" style="' + primaryBtn + '">' +
-      icon('heartHandshake', 14) + ' Sponsor on GitHub ' + icon('externalLink', 12) +
-    '</a>';
-
-  return '<div class="dm-overlay-page" style="padding:16px;">' +
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">' +
-    '<button data-dm-action="back-from-contribute" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('chevronLeft', 14) + '</button>' +
-    '<span style="font-size:14px;font-weight:600;color:var(--dm-text);">Contribute</span></div>' +
-    '<p style="margin:0 0 18px 2px;font-size:12px;line-height:1.55;color:var(--dm-text-secondary);">Dev Agent is free, forever — and open source. If it’s useful to you, here are a few ways to help.</p>' +
-    '<div style="display:flex;flex-direction:column;gap:16px;">' +
-
-    '<div><div style="' + sectionLabel + '">Spread the word</div>' +
-    '<div style="' + card + '"><div style="display:flex;flex-direction:column;gap:8px;">' +
-    row('star', 'Star the repo on GitHub', 'https://github.com/SandeepBaskaran/design-mode') +
-    (IS_SAFARI ? '' : IS_FIREFOX
-      ? row('messageSquare', 'Review on Firefox Add-ons', 'https://addons.mozilla.org/firefox/addon/design-mode-add-on/')
-      : row('messageSquare', 'Review on the Chrome Web Store', 'https://chromewebstore.google.com/detail/design-mode/ighgobegfcmjagombgnfhgioflinojih')) +
-    row('productHunt', 'Upvote on Product Hunt', 'https://www.producthunt.com/products/design-mode') +
-    shareRow +
-    '</div></div></div>' +
-
-    '<div><div style="' + sectionLabel + '">Help improve it</div>' +
-    '<div style="' + card + '"><div style="display:flex;flex-direction:column;gap:8px;">' +
-    row('alertTriangle', 'Report an issue', 'https://github.com/SandeepBaskaran/design-mode/issues/new/choose') +
-    row('messageCircle', 'Start a discussion', 'https://github.com/SandeepBaskaran/design-mode/discussions') +
-    row('gitPullRequest', 'Open a pull request', 'https://github.com/SandeepBaskaran/design-mode/compare') +
-    '</div></div></div>' +
-
-    '<div><div style="' + sectionLabel + '">Support the project</div>' +
-    '<div style="' + card + '">' +
-    sponsorBtn +
-    '<p style="margin:10px 0 0 0;font-size:11px;line-height:1.5;color:var(--dm-text-secondary);">Helps cover Cloud MCP costs (tool-call limits, infra) so those stay generous for everyone.</p>' +
-    '</div></div>' +
-
-    '</div>' +
-    '<div style="margin-top:18px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Dev Agent v' + extensionVersion() + '</div></div>' +
-    '</div>';
+  return renderHelpView();
 }
 
-/* ── Phase 1: Render with morphdom ── */
 function renderCaptureToast(): string {
   if (!captureToast) return '';
   const isErr = captureToast.kind === 'error';
@@ -11022,11 +10963,7 @@ function setupDelegation() {
           break;
         }
         case 'copy-share-text': {
-          const payload = IS_SAFARI
-            ? 'I’ve been using Design Mode in Safari Web Inspector to live-edit CSS and send changes to coding agents. Free + open source.\nhttps://designmode.app'
-            : IS_FIREFOX
-            ? 'I’ve been using Design Mode — a Firefox sidebar add-on that lets you live-edit CSS on any page, with MCP support for Claude/Cursor. Free + open source.\nhttps://addons.mozilla.org/firefox/addon/design-mode-add-on/'
-            : 'I’ve been using Design Mode — a Chrome side-panel extension that lets you live-edit CSS on any page, with MCP support for Claude/Cursor. Free + open source.\nhttps://chromewebstore.google.com/detail/design-mode/ighgobegfcmjagombgnfhgioflinojih';
+          const payload = 'I have been using Dev Agent to edit website layouts visually and hand focused changes to a coding agent. Source: https://github.com/prity-dhara/dev-design-mode';
           const flash = (msg: string) => {
             const lbl = document.querySelector('[data-dm-share-label]') as HTMLElement | null;
             if (!lbl) return;
