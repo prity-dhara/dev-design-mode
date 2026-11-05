@@ -4,7 +4,7 @@ import { getElementById, getOrAssignId, generateSelector } from './helpers';
 import { recordDomChange } from './change-tracker';
 import { isSafeClassName } from './site-class-discovery';
 
-export const BUILDER_KINDS = ['section', 'container', 'div', 'heading', 'paragraph', 'button', 'image', 'card', 'grid'] as const;
+export const BUILDER_KINDS = ['section', 'container', 'div', 'heading', 'paragraph', 'button', 'card', 'grid'] as const;
 export type BuilderKind = typeof BUILDER_KINDS[number];
 export type InsertPosition = 'before' | 'inside' | 'after';
 const INVALID_PARENTS = new Set(['IMG','INPUT','BR','HR','BUTTON','P','H1','H2','H3','H4','H5','H6','A','SPAN','LABEL','TEXTAREA','SELECT','OPTION']);
@@ -68,34 +68,66 @@ export function previewBuilderPlacement(targetId: string | undefined, position: 
 }
 
 
-// Transient editor-only indication for otherwise invisible empty sections.
-// The actual page element keeps its original CSS (no forced min-height).
+// Editor-only dotted guide for newly inserted empty structural elements.
+// It is drawn above the page and never modifies the website element's CSS,
+// dimensions, HTML, or the exported source. The marker is intentionally small.
+let emptyMarker: HTMLElement | null = null;
+let stopEmptyMarker: (() => void) | null = null;
+
+export function clearEmptyBuilderMarker(): void {
+  stopEmptyMarker?.();
+  stopEmptyMarker = null;
+  emptyMarker?.remove();
+  emptyMarker = null;
+}
 export function highlightInsertedBuilderElement(elementId: string, kind: BuilderKind): void {
-  const target = getElementById(elementId);
-  if (!target) return;
   clearBuilderPreview();
-  const rect = target.getBoundingClientRect();
-  const overlay = document.createElement('div');
-  overlay.setAttribute('data-dm-builder-overlay','');
-  overlay.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;box-sizing:border-box;border:2px dashed #2563eb;background:rgba(37,99,235,.06);border-radius:4px;';
-  overlay.style.left = Math.max(0,rect.left) + 'px';
-  overlay.style.top = Math.max(0,rect.top) + 'px';
-  overlay.style.width = Math.max(40,Math.min(innerWidth,rect.right)-Math.max(0,rect.left)) + 'px';
-  overlay.style.height = Math.max(48,Math.min(rect.height || 48,innerHeight-Math.max(0,rect.top))) + 'px';
-  const label = document.createElement('span');
-  label.textContent = 'New ' + kind + (rect.height < 12 ? ' · empty' : '');
-  label.style.cssText = 'position:absolute;top:0;left:0;background:#2563eb;color:#fff;padding:3px 7px;border-radius:0 0 4px 0;font:600 12px system-ui,sans-serif;';
-  overlay.appendChild(label);
-  document.documentElement.appendChild(overlay);
-  preview = overlay;
-  setTimeout(() => { if (preview === overlay) clearBuilderPreview(); }, 12000);
+  clearEmptyBuilderMarker();
+  if (!['section', 'container', 'div', 'grid'].includes(kind)) return;
+  const target = getElementById(elementId);
+  if (!target || target.children.length || target.textContent?.trim()) return;
+
+  const marker = document.createElement('div');
+  marker.setAttribute('data-dm-builder-overlay', '');
+  marker.setAttribute('aria-hidden', 'true');
+  marker.style.cssText = 'position:fixed;z-index:2147483646;pointer-events:none;box-sizing:border-box;' +
+    'border:2px dashed #329cf5;border-radius:6px;background:rgba(50,156,245,.10);' +
+    'display:flex;align-items:center;justify-content:center;color:#329cf5;' +
+    'font:500 12px system-ui,sans-serif;line-height:1;';
+  marker.textContent = 'Empty ' + kind;
+  document.documentElement.appendChild(marker);
+  emptyMarker = marker;
+  const update = () => {
+    if (emptyMarker !== marker) return;
+    if (!target.isConnected || target.children.length || target.textContent?.trim()) {
+      clearEmptyBuilderMarker();
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    // The marker is a visual indicator, not a real min-height on the page.
+    marker.style.left = Math.max(0, rect.left) + 'px';
+    marker.style.top = Math.max(0, Math.min(window.innerHeight - 32, rect.top)) + 'px';
+    marker.style.width = Math.max(100, Math.min(window.innerWidth - Math.max(0,rect.left), rect.width || 180)) + 'px';
+    marker.style.height = '32px';
+    marker.style.display = rect.bottom < 0 || rect.top > window.innerHeight ? 'none' : 'flex';
+  };
+  const observer = new MutationObserver(update);
+  observer.observe(target, { childList: true, characterData: true, subtree: true });
+  window.addEventListener('scroll', update, true);
+  window.addEventListener('resize', update);
+  stopEmptyMarker = () => {
+    observer.disconnect();
+    window.removeEventListener('scroll', update, true);
+    window.removeEventListener('resize', update);
+  };
+  update();
 }
 export function addBuilderElement(kind: BuilderKind, targetId?: string, className?: string, position: InsertPosition = 'after'): string | null {
   if (!canEditRoute() || !BUILDER_KINDS.includes(kind)) return null;
   // The class is always a single safe CSS class, never HTML or a selector.
   if (className && !isSafeClassName(className)) return null;
   const tag = ({ section: 'section', container: 'div', div: 'div', heading: 'h2',
-    paragraph: 'p', button: 'button', image: 'img', card: 'article', grid: 'div' } as const)[kind];
+    paragraph: 'p', button: 'button', card: 'article', grid: 'div' } as const)[kind];
   const el = document.createElement(tag);
   // Reuse the site's real class if one is chosen; don't invent another class on top.
   // Without a choice, use semantic HTML and existing global element styles.
@@ -103,7 +135,6 @@ export function addBuilderElement(kind: BuilderKind, targetId?: string, classNam
   if (kind === 'heading') el.textContent = 'Your heading';
   if (kind === 'paragraph') el.textContent = 'Add your description here.';
   if (kind === 'button') { el.textContent = 'Button'; (el as HTMLButtonElement).type = 'button'; }
-  if (kind === 'image') { (el as HTMLImageElement).alt = 'Placeholder image'; }
   if (kind === 'card') {
     const h = document.createElement('h3'); h.textContent = 'Card title';
     const p = document.createElement('p'); p.textContent = 'Card description';
