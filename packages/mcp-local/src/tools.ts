@@ -1,4 +1,6 @@
 import { state, type StyleChange } from './state.js';
+import { focusedChangeReport } from './focused-report.js';
+import { locateReactSource } from './react-source-map.js';
 import { requestFromExtension, isExtensionConnected } from './websocket-server.js';
 import { stopFeedbackSession, waitForHandoff, type ToolExtra } from './feedback-session.js';
 
@@ -254,6 +256,20 @@ export async function executeLocalTool(
 ): Promise<ToolResult> {
   switch (name) {
     case 'get_changes': return getChanges();
+    case 'get_focused_changes':
+      return { content: [{ type: 'text', text: JSON.stringify(focusedChangeReport(
+        typeof args.routeKey === 'string' ? args.routeKey : undefined,
+      )) }] };
+    case 'locate_react_source':
+      try {
+        return { content: [{ type: 'text', text: JSON.stringify(locateReactSource({
+          projectRoot: String(args.projectRoot || ''),
+          componentName: typeof args.componentName === 'string' ? args.componentName : undefined,
+          sourceHint: typeof args.sourceHint === 'string' ? args.sourceHint : undefined,
+        })) }] };
+      } catch (error) {
+        return { content: [{ type: 'text', text: 'Source lookup failed: ' + String(error) }], isError: true };
+      }
     case 'apply_changes': return applyChanges(args);
     case 'set_change_status': return setChangeStatus(args);
     case 'clear_changes': return clearChanges();
