@@ -10,7 +10,9 @@ server — drive them live; do not look for task files on disk.
 
 ## Tools (Design Mode MCP server)
 - `get_session_summary` — health check; confirm the extension is connected.
-- `get_changes` — design-token / style / text / DOM changes plus pinned
+- `get_focused_changes` — preferred first read: compact, unresolved style/text/DOM edits, token changes and comments with stable IDs. Optional `routeKey` narrows to one page.
+- `locate_react_source` — verify JSX/TSX file candidates in a local React checkout using `projectRoot`, optional `componentName` and `sourceHint`. A match is a hint, not proof of DOM ownership.
+- `get_changes` — full fallback for additional context: design-token / style / text / DOM changes plus pinned
   comments. The `items` array gives every entry a stable `id` for status
   updates. Each comment has an `id`, a `selector`, and — for region
   comments — a `region` box ({x,y,w,h} in document pixels) instead of an
@@ -40,13 +42,12 @@ server — drive them live; do not look for task files on disk.
    require the Local `wait_for_handoff` tool. For live rounds, select the
    exact `pageUrl` from the session summary (ask if ambiguous), call
    `wait_for_handoff` without `sessionId`, and wait for an explicit Send.
-   Otherwise call `get_changes` once. Build a task list from unresolved
+   Otherwise call `get_focused_changes` once. Build a task list from unresolved
    token/style/text/DOM changes and comments; skip already-resolved items.
 3. For each item:
    - Call `set_change_status` with `{ status: 'in_progress', ids: [id] }`
      so the user sees a WIP badge on the row you're working.
-   - Map the `selector` to its source in the codebase. Reference files as
-     `path:line`.
+   - For React projects, use any reliable source hint or component name with `locate_react_source` against the checked-out project root. If no file is verified, search the project rather than guessing. A selector by itself is not a source path. Reference verified files as `path:line`. Do not load entire directories without a reason.
    - For a comment, read its `text`; for a region comment, call
      `get_screenshot` with the region first so you can see the area.
    - For a `tokenChanges` entry, find where that token is defined in the
@@ -79,3 +80,4 @@ server — drive them live; do not look for task files on disk.
 - **step** — one item at a time; confirm with the user between each.
 - **batch** — group related items; one confirmation per group.
 - **yolo** — apply everything autonomously (use with care).
+
