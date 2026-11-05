@@ -199,7 +199,18 @@ function buildTokenLookup(tokens: PageToken[]): Map<string, string> {
   for (const t of tokens) {
     const v = t.resolvedValue || t.value;
     if (!v) continue;
-    lookup.set(normalize(v), t.cssVar);
+    // Tailwind's internal --tw-* utilities are implementation details, not
+    // design-system choices. Generic values like 0px/auto/inherit are too
+    // common to associate reliably with any one token.
+    if (/^--tw-/.test(t.cssVar) || /^(?:0(?:px|rem|em|%)?|auto|none|normal|inherit|initial|unset)$/i.test(v.trim())) continue;
+    const key = normalize(v);
+    // If multiple tokens share a resolved value, do not arbitrarily pick the
+    // last one: that would silently substitute the wrong variable.
+    if (lookup.has(key)) {
+      lookup.set(key, '');
+    } else {
+      lookup.set(key, t.cssVar);
+    }
   }
   return lookup;
 }

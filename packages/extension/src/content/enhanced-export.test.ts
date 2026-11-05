@@ -9,7 +9,7 @@ const code = transformSync(readFileSync(new URL('./enhanced-export.ts', import.m
   loader: 'ts', format: 'cjs',
 }).code;
 
-function prompt(changes: TextChange[], domChanges: Record<string, unknown>[] = [], styleChanges: Record<string, unknown>[] = [], elements: Record<string, unknown> = {}): string {
+function prompt(changes: TextChange[], domChanges: Record<string, unknown>[] = [], styleChanges: Record<string, unknown>[] = [], elements: Record<string, unknown> = {}, tokens: Record<string, unknown>[] = []): string {
   const dependencies: Record<string, unknown> = {
     './helpers': { getElementById: (id: string) => elements[id] ?? null, generateSelector: (el: any) => el.selector, describeElement: (el: any) => el.tagName?.toLowerCase() ?? 'element' },
     './change-tracker': {
@@ -17,7 +17,7 @@ function prompt(changes: TextChange[], domChanges: Record<string, unknown>[] = [
     },
     './source-detection': { getSourceLocation: () => null },
     './root-var-store': { getTokenEdits: () => [] },
-    './token-engine': { getTokenIndex: () => ({ tokens: [] }) },
+    './token-engine': { getTokenIndex: () => ({ tokens }) },
   };
   const module = { exports: {} as { exportMarkdown: () => string } };
   runInNewContext(code, {
@@ -192,4 +192,35 @@ test('text without verified DOM ancestry does not claim it is inside a duplicate
   }]);
   assert.ok(output.includes('text → "Arun"'));
   assert.ok(!output.includes('inside newly created'));
+});
+
+test('Tailwind default zero never masquerades as a meaningful spacing token', () => {
+  const output = prompt([], [], [
+    { id: 'position', elementId: 'heading', selector: 'h1.title', property: 'position',
+      oldValue: 'static', newValue: 'relative', timestamp: 1 },
+    { id: 'top', elementId: 'heading', selector: 'h1.title', property: 'top',
+      oldValue: '0px', newValue: '-7px', timestamp: 2 },
+    { id: 'size', elementId: 'heading', selector: 'h1.title', property: 'fontSize',
+      oldValue: '54.2px', newValue: '3rem', timestamp: 3 },
+  ], {}, [
+    { cssVar: '--tw-ring-offset-width', value: '0px', resolvedValue: '0px' },
+    { cssVar: '--size-lg', value: '3rem', resolvedValue: '3rem' },
+  ]);
+  assert.ok(output.includes('top 0px → -7px'));
+  assert.ok(output.includes('font-size 54.2px → var(--size-lg)'));
+  assert.ok(!output.includes('--tw-ring-offset-width'));
+  assert.ok(!output.includes('## Design tokens used\\n- \`--tw-ring-offset-width\`'));
+});
+
+test('ambiguous equal-value tokens are not substituted arbitrarily', () => {
+  const output = prompt([], [], [{
+    id: 'bg', elementId: 'panel', selector: 'div.panel',
+    property: 'backgroundColor', oldValue: '#fff', newValue: '#123456', timestamp: 1,
+  }], {}, [
+    { cssVar: '--brand', value: '#123456', resolvedValue: '#123456' },
+    { cssVar: '--alternate', value: '#123456', resolvedValue: '#123456' },
+  ]);
+  assert.ok(output.includes('background-color #fff → #123456'));
+  assert.ok(!output.includes('var(--brand)'));
+  assert.ok(!output.includes('var(--alternate)'));
 });
