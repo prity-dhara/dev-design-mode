@@ -403,3 +403,14 @@ By participating you agree to the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 MIT — see [LICENSE](./LICENSE). Fork it, extend it, ship it.
 [Get in touch](https://github.com/prity-dhara/dev-design-mode/issues) for custom integrations.
+
+
+## Replace PNG/SVG in Dev Agent (local projects)
+
+The Media panel includes **Replace image (PNG / SVG)** on selected HTML images and CSS background images. Start the **local** Dev Agent companion with a website project path so uploaded files go into that project's `public/images/` directory:
+
+```bash
+DM_ASSET_PROJECT_ROOT="/absolute/path/to/your-website" npm run dev:mcp-local
+```
+
+Run the website on localhost and use **Media → Replace image (PNG / SVG)**; PNGs and static SVGs up to 8 MB are supported. Uploads require the local companion and are saved into the website repo with a unique name. The inspected image is updated in the browser. For React/Vue/HTML/CSS source persistence, use the existing Changes / coding-agent handoff to update the corresponding source reference before committing. Files are saved locally but source code is **not** automatically rewritten by this upload feature. Remote websites such as galent.com are not local project previews, so uploaded `/images/...` paths will not automatically resolve there.
