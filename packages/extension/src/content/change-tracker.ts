@@ -1495,8 +1495,7 @@ export async function getSiteChangeReport() {
   // Source hints only for elements we can still locate on the active page.
   // React production bundles frequently omit debug metadata: absence is normal.
   const sourceHints: Array<{ id: string; component?: string; file?: string; line?: number; framework: 'react' }> = [];
-  for (const change of [...styleChanges, ...textChanges, ...domChanges]) {
-    if (!getElementById(change.elementId)) continue;
+  for (const change of [...active.styleChanges, ...active.textChanges, ...active.domChanges]) {
     const el = getElementById(change.elementId);
     if (!el) continue;
     const source = getSourceLocation(el);
