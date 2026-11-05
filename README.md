@@ -1,6 +1,6 @@
-# Design Mode ✦
+# Dev Agent ✦
 
-[README](./README.md) · [Code of conduct](./CODE_OF_CONDUCT.md) · [Contributing](./CONTRIBUTING.md) · **[Remix](./REMIX.md)** · [MIT licence](./LICENSE) · [Security](./SECURITY.md)
+[Getting started](./README.md) · [Local MCP setup](./docs/agent-setup.md) · [MIT license](./LICENSE) · [Security](./SECURITY.md)
 
 > Design directly in your browser. Your agent writes the code.
 
@@ -8,17 +8,26 @@ A free, open-source browser extension (Chrome + Firefox) that turns any website 
 
 ---
 
-## 🎨 Install in 60 seconds
+## Install and test locally
 
-**1. Download the latest release:** **[GitHub Releases →](https://github.com/SandeepBaskaran/design-mode/releases/latest)** — `design-mode-extension.zip` for Chrome, `design-mode-addon.zip` for Firefox, and `designmode-for-safari.zip` for Safari.
+Dev Agent is developed in this repository. Build and load the browser extension locally:
 
-**2. Try it without installing:** [walk the interactive demo at designmode.app/demo](https://designmode.app/demo)
+```sh
+npm ci
+npm run build:extension
+```
 
-**3. Connect your AI agent (optional):** [pick one of the three modes at designmode.app/mcp](https://designmode.app/mcp) (Local, Cloud, or Self-hosted)
+In Chrome, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select `packages/extension/dist`.
 
-That's it. Pin the extension to your toolbar, open any website, and click the toolbar icon. Chrome opens your chosen surface (side panel by default, floating, or Pin on top); Firefox opens its sidebar. Hover any element to highlight it; click to edit. Everything you change is tracked in the Changes tab and can be sent to your AI coding agent with one click.
+For a coding-agent connection, use the **Local** MCP mode first. Build the companion with:
 
-> **Editing a local HTML file?** Chrome blocks extensions from `file://` pages by default — enable **"Allow access to file URLs"** for Design Mode in `chrome://extensions` (on Firefox, manage file access from `about:addons`). The side panel walks you through it when needed.
+```sh
+npm --workspace @design-mode/mcp-local run build
+```
+
+See [local MCP setup](./docs/agent-setup.md) for the bridge and connection instructions. No third-party cloud service, account, or token is required for the local workflow.
+
+> This repository includes software licensed under MIT. See [LICENSE](./LICENSE) for the retained copyright and permission notice.
 
 ---
 
@@ -35,15 +44,13 @@ Design Mode is a visual editor that lives in your browser. Instead of describing
 - Opt-in anonymous analytics helps prioritize what actually gets built next.
 - Tighten a layout in seconds, then commit the patch. The vibe-coding loop, minus the back-and-forth.
 
-## Three ways to connect your AI agent
+## MCP connection options
 
-Design Mode brings a coding agent inside the page through a small bridge called MCP. There are three connection modes — pick whichever fits how you work:
+- **Local (recommended)** — Dev Agent's existing companion server runs on your laptop, using the local bridge at port 9960. Choose this mode to connect Codex and test focused changes.
+- **Cloud** — Requires a separately configured Dev Agent cloud relay. No official Dev Agent hosted endpoint or cloud token is supplied by this repository.
+- **Self-hosted** — Deploy the relay code from `packages/mcp-cloud` with your own infrastructure and credentials.
 
-- **Cloud (default)** — Use the hosted relay at `mcp.designmode.app`. Paste a bearer token into your agent's config and you're done — no install, no terminal. Free and anonymous.
-- **Local** — Run a tiny companion server on your laptop with one `npm` command. Fastest path, nothing leaves your machine — power-user mode with a terminal. Concurrent agent sessions automatically attach to one shared local owner, so they reuse port 9960 and the same browser connection.
-- **Self-hosted** — Same code as Cloud (open source in `packages/mcp-cloud`). Deploy on any Node.js host with Redis — Vercel, Railway, Fly, your own VM. You own the relay and the privacy posture.
-
-**[Full setup guide for all three modes — Claude Desktop, Cursor, Claude Code →](https://designmode.app/mcp)**
+[Local MCP setup instructions](./docs/agent-setup.md)
 
 ---
 
@@ -384,9 +391,9 @@ reminder. The manual checklist covers:
   (events safely no-op when `NEXT_PUBLIC_GA_ID` is unset).
 - Vulnerability reports: [SECURITY.md](./SECURITY.md).
 
-## Contributing
+## Development
 
-PRs welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the build/run flow,
+For the build/run flow, see [CONTRIBUTING.md](./CONTRIBUTING.md),
 hard rules (no unconfigured outbound service, no inline-style writes for tracked changes),
 and where to file issues vs. security reports.
 
@@ -395,4 +402,4 @@ By participating you agree to the [Code of Conduct](./CODE_OF_CONDUCT.md).
 ## License
 
 MIT — see [LICENSE](./LICENSE). Fork it, extend it, ship it.
-[Get in touch](mailto:hello@sandeepbaskaran.com) for custom integrations.
+[Get in touch](https://github.com/prity-dhara/dev-design-mode/issues) for custom integrations.
