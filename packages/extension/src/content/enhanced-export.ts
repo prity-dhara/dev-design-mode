@@ -347,12 +347,19 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
       line = c.origin
         ? `- ${label(c.elementId, ctx)}: Move from ${describeStored(c.origin)} to ${dest} (0-based child positions). Preserve its content and classes.`
         : `- ${label(c.elementId, ctx)}: Move to ${dest} (0-based child position). Preserve its content and classes.`;
+    } else if ((c.action === 'duplicate' || c.action === 'insert') && c.destination) {
+      const destination = describeCurrent(getElementById(c.elementId), c.destination);
+      // Newly created nodes keep their own E-reference, so subsequent
+      // text and appearance edits unambiguously apply to the new node.
+      line = `- ${label(c.elementId, ctx)}: ${c.action === 'duplicate' ? 'Duplicate into' : 'Insert at'} ${destination} (0-based child position). This is the new element; apply its following edits here.`;
+    } else if (c.action === 'delete' && c.origin) {
+      line = `- ${label(c.elementId, ctx)}: Delete from ${describeStored(c.origin)}.`;
     } else {
       const verb =
-        c.action === 'delete' ? 'deleted' :
-        c.action === 'duplicate' ? 'duplicated' :
-        c.action === 'insert' ? 'inserted' :
-        c.action === 'move' ? 'moved' : c.action;
+        c.action === 'delete' ? 'Delete element' :
+        c.action === 'duplicate' ? 'Duplicate element' :
+        c.action === 'insert' ? 'Insert element' :
+        c.action === 'move' ? 'Move element' : c.action;
       line = `- ${label(c.elementId, ctx)}: ${verb}`;
     }
     entries.push({ t: c.timestamp, line: line + breakpointTag([c]) });
