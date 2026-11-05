@@ -47,8 +47,8 @@ test('active-route prompt labels href edits as attributes, retaining exact befor
     [' /before?q="quoted" ', ' /after?q="quoted" '],
   ]) {
     const result = prompt([change({ oldText, newText, breakpoint: 'mobile', viewportWidth: 390 })]);
-    assert.ok(result.includes(`- a.link href: ${JSON.stringify(oldText)} → ${JSON.stringify(newText)} _(mobile · 390px)_`));
-    assert.ok(!result.includes('a.link text'));
+    assert.ok(result.includes(`- E1 href: ${JSON.stringify(oldText)} → ${JSON.stringify(newText)} _(mobile · 390px)_`));
+    assert.ok(!result.includes('E1 text'));
     assert.ok(!result.includes('Text edits use git word-diff'));
   }
 });
@@ -59,9 +59,23 @@ test('mixed attribute and text edits preserve chronology, text word-diff and rew
     change({ id: 'text-diff', attributeName: undefined, oldText: 'Read the old guide', newText: 'Read the new guide', timestamp: 1 }),
     change({ id: 'text-rewrite', attributeName: undefined, oldText: 'Before', newText: 'After', timestamp: 2 }),
   ]);
-  assert.ok(result.includes('- a.link text: Read the [-old-]{+new+} guide'));
-  assert.ok(result.includes('- a.link text → "After"'));
+  assert.ok(result.includes('- E1 text: Read the [-old-]{+new+} guide'));
+  assert.ok(result.includes('- E1 text → "After"'));
   assert.ok(result.includes('Text edits use git word-diff'));
-  assert.ok(result.indexOf('a.link text:') < result.indexOf('a.link text →'));
-  assert.ok(result.indexOf('a.link text →') < result.indexOf('a.link href:'));
+  assert.ok(result.indexOf('E1 text:') < result.indexOf('E1 text →'));
+  assert.ok(result.indexOf('E1 text →') < result.indexOf('E1 href:'));
+});
+
+test('copy prompt indexes the target selector once and skips no-op/resolved changes', () => {
+  const result = prompt([
+    change({ id: 'edit', timestamp: 1 }),
+    change({ id: 'resolved', timestamp: 2, oldText: '/one', newText: '/two', status: 'resolved' }),
+    change({ id: 'noop', timestamp: 3, oldText: '/same', newText: '/same' }),
+  ]);
+  assert.ok(result.includes('## Element targets'));
+  assert.ok(result.includes('- `E1`: `a.link`'));
+  assert.equal(result.split('a.link').length - 1, 1);
+  assert.ok(result.includes('- E1 href: "/before" → "/after"'));
+  assert.ok(!result.includes('/two'));
+  assert.ok(!result.includes('/same'));
 });
