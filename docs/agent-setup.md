@@ -19,8 +19,8 @@ Use `--agent cursor` for Cursor, or `--agent all` for both. The default is a **d
 
 | Client | MCP configuration | Workflow command |
 |---|---|---|
-| Claude Code | `.mcp.json` | `.claude/commands/design-mode.md` |
-| Cursor | `.cursor/mcp.json` | `.cursor/commands/design-mode.md` |
+| Claude Code | `.mcp.json` | `.claude/commands/dev-agent.md` |
+| Cursor | `.cursor/mcp.json` | `.cursor/commands/dev-agent.md` |
 
 Setup merges only the `design-mode` entry, preserves other entries and backs up changed files. Conflicting existing entries require `--force` as well as apply confirmation. Existing environment settings and extra server options are preserved; incompatible HTTP transport fields are removed when switching to the local command. JSONC comments, trailing commas and a BOM are accepted. Changed configurations are normalised to JSON after a preview warning; the backup preserves the original. Malformed input and symlink targets are rejected instead of overwritten. Repeating the same setup makes no changes. Preview output excludes unrelated configuration values; backups remain local and should not be committed if they contain secrets.
 
@@ -34,7 +34,7 @@ Doctor checks the built CLI and localhost bridge/extension connectivity. It does
 
 ## Live feedback rounds
 
-Run `/design-mode` in your agent and choose live rounds. The Local tool `wait_for_handoff` waits in bounded calls of at most 20 seconds. The panel shows **Waiting for feedback**, **Implementing**, or **Stopped**. Each Send captures a structured snapshot; later edits are not silently added to that snapshot. The next Send becomes available when the agent returns to waiting.
+Run `/dev-agent` in your agent and choose live rounds. The Local tool `wait_for_handoff` waits in bounded calls of at most 20 seconds. The panel shows **Waiting for feedback**, **Implementing**, or **Stopped**. Each Send captures a structured snapshot; later edits are not silently added to that snapshot. The next Send becomes available when the agent returns to waiting.
 
 **Stop** ends the loop and releases a pending wait without clearing your edits. It cannot terminate an already-running command in your coding agent. Stop that command in the agent itself if necessary. Navigation, disconnection and explicit Clear also end the session; a new loop requires a fresh start. Multiple clients cannot claim the same live session simultaneously.
 
