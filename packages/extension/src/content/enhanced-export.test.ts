@@ -9,11 +9,11 @@ const code = transformSync(readFileSync(new URL('./enhanced-export.ts', import.m
   loader: 'ts', format: 'cjs',
 }).code;
 
-function prompt(changes: TextChange[]): string {
+function prompt(changes: TextChange[], domChanges: Record<string, unknown>[] = []): string {
   const dependencies: Record<string, unknown> = {
     './helpers': { getElementById: () => null },
     './change-tracker': {
-      getStyleChanges: () => [], getTextChanges: () => changes, getDomChanges: () => [],
+      getStyleChanges: () => [], getTextChanges: () => changes, getDomChanges: () => domChanges,
     },
     './source-detection': {},
     './root-var-store': { getTokenEdits: () => [] },
@@ -78,4 +78,18 @@ test('copy prompt indexes the target selector once and skips no-op/resolved chan
   assert.ok(result.includes('- E1 href: "/before" → "/after"'));
   assert.ok(!result.includes('/two'));
   assert.ok(!result.includes('/same'));
+});
+
+test('duplicate instruction names the final destination and shares target with text edits', () => {
+  const result = prompt([
+    change({ id: 'label', elementId: 'tag-new', selector: 'span.tag-new',
+      attributeName: undefined, oldText: 'Old', newText: 'Test Tag', timestamp: 2 }),
+  ], [{
+    id: 'duplicate-new', elementId: 'tag-new', selector: 'span.tag-new',
+    action: 'duplicate', tagName: 'span', timestamp: 1,
+    destination: { parentSelector: 'div.tag-list', index: 3 },
+  }]);
+  assert.ok(result.includes('Duplicate into div.tag-list[3] (0-based child position)'));
+  assert.ok(result.includes('E1 text'));
+  assert.ok(result.includes('- `E1`: `span.tag-new`'));
 });
