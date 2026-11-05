@@ -223,9 +223,10 @@ function tokenize(value: string, lookup: Map<string, string>, used: Set<string>)
 
 // ── Markdown — short, chronological, agent-friendly ──
 export function exportMarkdown(pageComments: CommentData[] = []): string {
-  const styleChanges = getStyleChanges();
-  const textChanges = getTextChanges();
-  const domChanges = getDomChanges();
+  // A prompt represents final unresolved intent, not the full edit history.
+  const styleChanges = getStyleChanges().filter(c => c.status !== 'resolved' && c.oldValue !== c.newValue);
+  const textChanges = getTextChanges().filter(c => c.status !== 'resolved' && c.oldText !== c.newText);
+  const domChanges = getDomChanges().filter(c => c.status !== 'resolved');
 
   const tokens = getTokenIndex().tokens;
   const tokenLookup = buildTokenLookup(tokens);
@@ -270,21 +271,17 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     if (!styleByElement.has(key)) styleByElement.set(key, []);
     styleByElement.get(key)!.push(c);
   }
-  // Inline source pointer: `[file:line]` after the selector when source
-  // detection found something. Drops the separate "Source files" section
-  // and saves the agent a cross-reference hop.
-  const sourcePointer = (ctx: ElementContext): string => {
-    if (!ctx.sourceFile) return '';
-    const loc = ctx.line ? `${ctx.sourceFile}:${ctx.line}` : ctx.sourceFile;
-    return ` [${loc}]`;
+  // Each element receives one short reference. Include its exact selector
+  // once in the target index rather than on every modification line.
+  const targets = new Map<string, { ref: string; ctx: ElementContext }>();
+  const label = (elementId: string, ctx: ElementContext): string => {
+    let entry = targets.get(elementId);
+    if (!entry) {
+      entry = { ref: 'E' + (targets.size + 1), ctx };
+      targets.set(elementId, entry);
+    }
+    return entry.ref;
   };
-  // Short label, plus the full live selector when the short form matches
-  // more than one element — otherwise an agent locating `div.card` in a
-  // reordered DOM lands on the wrong sibling.
-  const label = (ctx: ElementContext): string =>
-    ctx.ambiguous && ctx.selector !== ctx.smartLabel
-      ? `${ctx.smartLabel} (${ctx.selector})`
-      : ctx.smartLabel;
 
   for (const list of styleByElement.values()) {
     const ctx = ensureCtx(list[0].elementId, list[0].selector);
@@ -299,7 +296,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
       })
       .join('; ');
     const earliest = Math.min(...list.map(c => c.timestamp));
-    entries.push({ t: earliest, line: `- ${label(ctx)}${sourcePointer(ctx)}: ${decls}${breakpointTag(list)}` });
+    entries.push({ t: earliest, line: `- ${label(list[0].elementId, ctx)}: ${decls}${breakpointTag(list)}` });
   }
 
   // Text changes ship as a compact inline word-diff (`~~removed~~ **added**`,
@@ -311,13 +308,13 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     if (c.attributeName) {
       entries.push({
         t: c.timestamp,
-        line: `- ${label(ctx)}${sourcePointer(ctx)} ${c.attributeName}: ${JSON.stringify(c.oldText)} → ${JSON.stringify(c.newText)}` + breakpointTag([c]),
+        line: `- ${label(c.elementId, ctx)} ${c.attributeName}: ${JSON.stringify(c.oldText)} → ${JSON.stringify(c.newText)}` + breakpointTag([c]),
       });
       continue;
     }
     const oldText = (c.oldText || '').trim();
     const newText = (c.newText || '').trim();
-    const head = `${label(ctx)}${sourcePointer(ctx)}`;
+    const head = `${label(c.elementId, ctx)}`;
     const wordCount = (s: string) => s.split(/\s+/).filter(Boolean).length;
     const diff = wordCount(oldText) > 400 || wordCount(newText) > 400
       ? null
@@ -348,15 +345,15 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     if (c.action === 'move' && c.destination) {
       const dest = describeCurrent(getElementById(c.elementId), c.destination);
       line = c.origin
-        ? `- ${label(ctx)}${sourcePointer(ctx)} moved: ${describeStored(c.origin)} → ${dest} (parent[child-index])`
-        : `- ${label(ctx)}${sourcePointer(ctx)} moved → ${dest}`;
+        ? `- ${label(c.elementId, ctx)}: Move from ${describeStored(c.origin)} to ${dest} (0-based child positions). Preserve its content and classes.`
+        : `- ${label(c.elementId, ctx)}: Move to ${dest} (0-based child position). Preserve its content and classes.`;
     } else {
       const verb =
         c.action === 'delete' ? 'deleted' :
         c.action === 'duplicate' ? 'duplicated' :
         c.action === 'insert' ? 'inserted' :
         c.action === 'move' ? 'moved' : c.action;
-      line = `- ${label(ctx)}${sourcePointer(ctx)} ${verb}`;
+      line = `- ${label(c.elementId, ctx)}: ${verb}`;
     }
     entries.push({ t: c.timestamp, line: line + breakpointTag([c]) });
   }
@@ -372,6 +369,20 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
   }
 
   if (entries.length > 0) {
+    lines.push('');
+    lines.push('## Element targets');
+    lines.push('Selectors describe the current browser DOM. Match each target in the project before editing; source hints are unverified.');
+    for (const entry of targets.values()) {
+      const { ref, ctx } = entry;
+      const path = ctx.selector || ctx.smartLabel;
+      const shortName = ctx.smartLabel !== path ? ctx.smartLabel + ' — ' : '';
+      lines.push('- `' + ref + '`: ' + shortName + '`' + path + '`');
+      if (ctx.sourceFile && ctx.framework === 'react') {
+        lines.push('  - React source hint (verify locally): `' +
+          ctx.sourceFile + (ctx.line ? ':' + ctx.line : '') + '`' +
+          (ctx.componentName ? ' · component ' + ctx.componentName : ''));
+      }
+    }
     entries.sort((a, b) => a.t - b.t);
     lines.push('');
     lines.push('## Changes');
