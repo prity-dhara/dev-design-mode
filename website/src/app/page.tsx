@@ -12,25 +12,25 @@ import {
 } from "@/components/site/json-ld";
 // import { Testimonials } from "@/components/blocks/testimonials"; // hidden until real quotes
 
-const homeTitle = "Design Mode — Browser visual editor for AI coding agents";
+const homeTitle = "Dev Agent — Browser visual editor for AI coding agents";
 const homeDescription =
   "Edit a rendered webpage visually, record exact changes, and hand them to Claude Code, Cursor or another compatible coding agent.";
 
 export const metadata = {
   title: { absolute: homeTitle },
   description: homeDescription,
-  alternates: { canonical: "https://designmode.app/" },
+  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     title: homeTitle,
     description: homeDescription,
-    url: "https://designmode.app/",
+    url: "/",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Design Mode — The visual editor for all your agent’s work",
+        alt: "Dev Agent — The visual editor for all your agent’s work",
       },
     ],
   },
@@ -43,7 +43,7 @@ export const metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Design Mode — The visual editor for all your agent’s work",
+        alt: "Dev Agent — The visual editor for all your agent’s work",
       },
     ],
   },
