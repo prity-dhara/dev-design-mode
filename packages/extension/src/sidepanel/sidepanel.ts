@@ -668,7 +668,12 @@ browser.storage?.local?.get?.([
   if (typeof result?.['dm-mcp-port'] === 'number') mcpPort = result['dm-mcp-port'];
   if (typeof result?.['dm-mcp-auto-connect'] === 'boolean') mcpAutoConnect = result['dm-mcp-auto-connect'];
   const savedMcpMode = result?.['dm-mcp-mode'];
-  if (savedMcpMode === 'local' || savedMcpMode === 'cloud' || savedMcpMode === 'self-hosted') mcpMode = savedMcpMode;
+  // Dev Agent currently exposes only Local MCP. Migrate old saved cloud
+  // selections to Local so a hidden mode cannot leave the MCP view offline.
+  mcpMode = 'local';
+  if (savedMcpMode && savedMcpMode !== 'local') {
+    browser.storage?.local?.set?.({ 'dm-mcp-mode': 'local' });
+  }
   if (typeof result?.['dm-mcp-cloud-token'] === 'string') mcpCloudToken = result['dm-mcp-cloud-token'];
   if (typeof result?.['dm-mcp-cloud-url'] === 'string') mcpCloudUrl = result['dm-mcp-cloud-url'];
   if (typeof result?.['dm-mcp-cloud-tenant'] === 'string') mcpCloudTenantId = result['dm-mcp-cloud-tenant'];
@@ -9863,9 +9868,10 @@ function renderChangesTab(): string {
 // own Vercel deploy of @design-mode/mcp-cloud). The cloud mode card
 // shows a token chip + copy buttons for the agent's config snippet.
 function renderMcpServerCard(sS: string, sT: string, lS: string, activeBtn: string, inactiveBtn: string): string {
-  const modeBtn = (m: McpMode, label: string) => '<button data-dm-mcp-mode="' + m + '" style="' + (mcpMode === m ? activeBtn : inactiveBtn) + '">' + label + '</button>';
-  const modeRow = '<div style="display:flex;gap:4px;margin-bottom:8px;">' +
-    modeBtn('local', 'Local') + modeBtn('cloud', 'Cloud') + modeBtn('self-hosted', 'Self-hosted') +
+  // Present a single Local indicator instead of Cloud/Self-hosted tabs.
+  // Remote transports remain in code but are intentionally not exposed.
+  const modeRow = '<div style="display:flex;align-items:center;margin-bottom:8px;">' +
+    '<span style="padding:5px 10px;background:var(--dm-accent-bg);border:1px solid var(--dm-accent-border);border-radius:5px;color:var(--dm-text);font-size:10px;font-family:inherit;text-transform:uppercase;">Local MCP</span>' +
     '</div>';
 
   let body = '';
