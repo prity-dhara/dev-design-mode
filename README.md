@@ -396,3 +396,34 @@ By participating you agree to the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 MIT — see [LICENSE](./LICENSE). Fork it, extend it, ship it.
 [Get in touch](mailto:hello@sandeepbaskaran.com) for custom integrations.
+
+
+## Local PNG / SVG image replacement (experimental)
+
+The Media inspector supports uploading a replacement PNG or **static** SVG for selected
+`<img>` elements and CSS background images. The file is saved into your **website's
+local repository**, not the extension repository.
+
+1. Open a terminal in the Design Mode repository and build the extension with
+   `npm install && npm run build:extension`. Reload the unpacked extension.
+2. Run the local companion, pointing it to the **website project** (the folder
+   containing its `public/` directory):
+
+   ```bash
+   DM_ASSET_PROJECT_ROOT="/absolute/path/to/your-website" npm run dev:mcp-local
+   ```
+
+3. Open the website at localhost, select an image, then choose **Media → Replace
+   image (PNG / SVG)**. Files up to 8 MB are saved as
+   `public/images/<name>-<unique-id>.png` or `.svg`, and the selected image is
+   updated in the browser.
+
+The server runs only on loopback, with a token required for uploads. Only
+static SVG markup is accepted (no scripts, external references, or active elements).
+
+**Source persistence:** The asset file is saved on disk immediately. The image
+reference change is recorded in Design Mode's browser changes; it **does not
+automatically rewrite arbitrary React/Vue/HTML source files**. Use the existing
+Copy Prompt / coding-agent workflow to apply the `src` or
+`background-image` change to the source, then commit **both** the new image
+and the source edit. Browser changes alone are not a Git commit.
