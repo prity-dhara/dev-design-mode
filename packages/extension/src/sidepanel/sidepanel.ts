@@ -2035,6 +2035,47 @@ async function downloadMedia(operation = beginInspectorOperation()) {
   trackFeature({ feature: 'media', action: 'download', media: m.kind, outcome: ok ? 'download_initiated' : 'download_failed' });
   if (ok) flashActionButton('download-media', icon('check', 11) + ' Downloaded');
 }
+async function uploadReplacementImage(file: File, operation = beginInspectorOperation()) {
+  operation.assertCurrent();
+  if (!info || !mediaInfo || !['image', 'background'].includes(mediaInfo.kind)) return;
+  const extension = file.name.toLowerCase().split('.').pop();
+  if (!['png', 'svg'].includes(extension || '') || file.size > 8 * 1024 * 1024) {
+    showCaptureToast('error', 'Choose a PNG or SVG smaller than 8 MB.');
+    return;
+  }
+  const selectionId = info.id;
+  try {
+    const healthRes = await operation.wait(fetch('http://127.0.0.1:' + mcpPort + '/.design-mode/health'));
+    if (!healthRes.ok) throw new Error('Start the local companion server first.');
+    const health = await operation.wait(healthRes.json());
+    if (health.identity !== 'design-mode-mcp' || !health.webSocketToken) throw new Error('Local companion not found.');
+    const raw = await operation.wait(new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+      reader.onerror = () => reject(new Error('Could not read the image.'));
+      reader.readAsDataURL(file);
+    }));
+    const response = await operation.wait(fetch('http://127.0.0.1:' + mcpPort + '/.design-mode/upload-asset', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-design-mode-token': health.webSocketToken },
+      body: JSON.stringify({ name: file.name, data: raw }),
+    }));
+    const result = await operation.wait(response.json());
+    if (!response.ok || !result.src) throw new Error(result.error || 'Could not save image.');
+    if (mediaInfo.kind === 'image') {
+      await applyAttribute(selectionId, 'src', result.src, operation);
+    } else {
+      await applyStyle('backgroundImage', 'url("' + result.src + '")', false, operation);
+    }
+    mediaInfo = { ...mediaInfo, src: result.src, filename: file.name };
+    lastMediaElementId = selectionId;
+    showCaptureToast('success', 'Saved ' + result.relativePath + '. Commit the asset and source change.');
+    render();
+  } catch (err) {
+    try { operation.assertCurrent(); } catch { return; }
+    showCaptureToast('error', err instanceof Error ? err.message : 'Image upload failed.');
+  }
+}
 async function copySvgMarkup(operation = beginInspectorOperation()) {
   operation.assertCurrent();
   if (!mediaInfo?.markup) return;
@@ -6725,7 +6766,12 @@ function renderMediaSection(displayInfo: any, s: Record<string, string>, isImg: 
     extra = sp() + '<button data-dm-action="copy-svg-markup" style="width:100%;padding:5px;background:var(--dm-btn-bg);border:1px solid var(--dm-btn-border);border-radius:5px;color:var(--dm-text-secondary);cursor:pointer;font-size:9px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px;">' + icon('copy', 9) + ' Copy SVG markup</button>';
   }
 
-  return sec('Media', 'image', preview + meta + downloadBtn + extra);
+  const uploadControl = (m.kind === 'image' || m.kind === 'background')
+    ? '<label style="display:block;cursor:pointer;text-align:center;padding:8px;margin-top:7px;border:1px solid var(--dm-btn-border);border-radius:6px;font-size:11px;color:var(--dm-text-secondary);">' +
+      icon('upload', 11) + ' Replace image (PNG / SVG)' +
+      '<input type="file" data-dm-replace-image accept=".png,.svg,image/png,image/svg+xml" style="display:none;" /></label>'
+    : '';
+  return sec('Media', 'image', preview + meta + downloadBtn + uploadControl + extra);
 }
 
 function spacingBox(s: Record<string, string>, displayInfo: any): string {
@@ -13145,6 +13191,13 @@ function setupDelegation() {
   // Change handler (selects)
   root.addEventListener('change', (e) => {
     const target = e.target as HTMLElement;
+    const uploadInput = target.closest<HTMLInputElement>('[data-dm-replace-image]');
+    if (uploadInput) {
+      const file = uploadInput.files?.[0];
+      if (file) void runInspectorAction(uploadReplacementImage(file));
+      uploadInput.value = '';
+      return;
+    }
     const builderPosition = target.closest<HTMLSelectElement>('[data-dm-builder-position]');
     if (builderPosition) {
       const value = builderPosition.value;
