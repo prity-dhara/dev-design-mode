@@ -41,6 +41,7 @@ export function focusedChangeReport(routeKey?: string): object {
     pageUrl: raw.pageUrl, ...(raw.handoff ? { handoff: raw.handoff } : {}),
     ...(routeKey ? { requestedRoute: routeKey } : {}),
     styles, texts, dom, comments, tokenChanges,
+    sourceHints: (raw.sourceHints ?? []).filter((h: { id: string }) => ids.has(h.id)),
     unresolvedCount: unresolved.length,
     note: 'Source paths are unverified until locate_react_source matches local files. Preserve layout and component behavior.',
   };
