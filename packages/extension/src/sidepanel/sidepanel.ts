@@ -671,6 +671,16 @@ browser.storage?.local?.get?.([
   if (savedMcpMode === 'local' || savedMcpMode === 'cloud' || savedMcpMode === 'self-hosted') mcpMode = savedMcpMode;
   if (typeof result?.['dm-mcp-cloud-token'] === 'string') mcpCloudToken = result['dm-mcp-cloud-token'];
   if (typeof result?.['dm-mcp-cloud-url'] === 'string') mcpCloudUrl = result['dm-mcp-cloud-url'];
+  // Do not silently keep connecting to the upstream hosted relay when a user
+  // opens an older fork's saved settings. Local uses our own companion.
+  if (/^https?:\\/\\/mcp\\.designmode\\.app\\/?$/i.test(mcpCloudUrl)) {
+    mcpCloudUrl = '';
+    mcpCloudToken = '';
+    mcpCloudTenantId = '';
+    if (mcpMode === 'cloud') mcpMode = 'local';
+    browser.storage?.local?.remove?.(['dm-mcp-cloud-token', 'dm-mcp-cloud-tenant', 'dm-mcp-cloud-url']);
+    browser.storage?.local?.set?.({ 'dm-mcp-mode': mcpMode });
+  }
   if (typeof result?.['dm-mcp-cloud-tenant'] === 'string') mcpCloudTenantId = result['dm-mcp-cloud-tenant'];
   if (typeof result?.['dm-inspector-hover-color'] === 'string') inspectorHoverColor = result['dm-inspector-hover-color'];
   if (typeof result?.['dm-inspector-select-color'] === 'string') inspectorSelectColor = result['dm-inspector-select-color'];
