@@ -3,7 +3,7 @@
   "version": "3.1.0",
   "private": true,
   "description": "Open-source visual design surface in the browser with MCP integration for coding agents",
-  "author": "Sandeep Baskaran",
+  "author": "Dev Agent contributors",
   "license": "MIT",
   "workspaces": [
     "packages/*",
