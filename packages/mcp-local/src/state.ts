@@ -84,6 +84,7 @@ export interface ChangeSession {
     oldValue: string; newValue: string; system?: string; cssRule: string;
   }>;
   tokenGuidance?: string;
+  sourceHints?: Array<{ id: string; component?: string; file?: string; line?: number; framework: 'react' }>;
   styleChanges: Array<RouteMetadata & {
     selector: string; property: string;
     oldValue: string; newValue: string; cssRule: string;
@@ -274,6 +275,7 @@ class DesignModeState {
     const report: Record<string, unknown> = { ...this.getChangeReport() as Record<string, unknown> };
     if (this.session?.tokenChanges) report.tokenChanges = this.session.tokenChanges.map(t => ({ ...t }));
     if (this.session?.tokenGuidance) report.tokenGuidance = this.session.tokenGuidance;
+    if (this.session?.sourceHints) report.sourceHints = this.session.sourceHints.map(h => ({ ...h }));
     report.comments = this.getComments().map(c => ({
       ...this.routeMetadata(c),
       id: c.id,
