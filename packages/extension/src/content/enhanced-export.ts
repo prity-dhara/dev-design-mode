@@ -260,9 +260,15 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
   // e.g. `- .btn-primary: color #000 → var(--accent); padding 8px → 12px`
   // Groups split at the element's move timestamp so the chronological list
   // preserves "edited → moved → edited again" for the agent.
+  // A clone that was subsequently moved is ONE final create operation.
+  // Keep the new node's final destination and its style/text edits, but do
+  // not ask the coding agent to first create it elsewhere then move it.
+  const createdIds = new Set(
+    domChanges.filter(d => d.action === 'duplicate' || d.action === 'insert').map(d => d.elementId),
+  );
   const moveTimestamps = new Map<string, number>();
   for (const d of domChanges) {
-    if (d.action === 'move') moveTimestamps.set(d.elementId, d.timestamp);
+    if (d.action === 'move' && !createdIds.has(d.elementId)) moveTimestamps.set(d.elementId, d.timestamp);
   }
   const styleByElement = new Map<string, typeof styleChanges>();
   for (const c of styleChanges) {
@@ -340,6 +346,10 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     return describeStored(fallback);
   };
   for (const c of domChanges) {
+    // New elements are described once at their FINAL position, even if
+    // subsequently moved. The following style and text changes still
+    // reference the new element via its stable E-number.
+    if (c.action === 'move' && createdIds.has(c.elementId)) continue;
     const ctx = ensureCtx(c.elementId, c.selector);
     let line: string;
     if (c.action === 'move' && c.destination) {
