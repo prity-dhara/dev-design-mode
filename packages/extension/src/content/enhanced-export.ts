@@ -351,7 +351,10 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
       const destination = describeCurrent(getElementById(c.elementId), c.destination);
       // Newly created nodes keep their own E-reference, so subsequent
       // text and appearance edits unambiguously apply to the new node.
-      line = `- ${label(c.elementId, ctx)}: ${c.action === 'duplicate' ? 'Duplicate into' : 'Insert at'} ${destination} (0-based child position). This is the new element; apply its following edits here.`;
+      const origin = c.action === 'duplicate'
+        ? (c.sourceSelector ? `Duplicate source \\`${c.sourceSelector}\\` into` : 'Duplicate element into')
+        : 'Insert element at';
+      line = `- ${label(c.elementId, ctx)}: ${origin} ${destination} (0-based child position). This is the new element; apply its following edits here.`;
     } else if (c.action === 'delete' && c.origin) {
       line = `- ${label(c.elementId, ctx)}: Delete from ${describeStored(c.origin)}.`;
     } else {
