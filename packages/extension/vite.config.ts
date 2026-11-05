@@ -39,7 +39,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: process.env.DM_BROWSER === 'safari' ? 'dist-safari' : 'dist',
+    outDir: process.env.DM_BROWSER === 'safari' ? 'dist-safari' : process.env.DM_BROWSER === 'firefox' ? 'dist-firefox' : 'dist',
     emptyOutDir: entry === 'content', // Only clear on first build
     rollupOptions: {
       input: current.input,
