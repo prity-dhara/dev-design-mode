@@ -1,11 +1,10 @@
 ## The short version
 
-Design Mode edits the page rendered in your browser and records a local change
+Dev Agent edits the page rendered in your browser and records a local change
 session. Release builds send usage analytics to PostHog without an opt-in and
 without a Settings off-switch. An unconfigured source build sends nothing.
-Events do not include page content or edits. A fresh install selects Cloud mode,
-but it does **not** contact the hosted relay until you choose **Connect to
-Cloud** and create an anonymous device credential.
+Events do not include page content or edits. A fresh install selects Local mode.
+No remote MCP relay is bundled or configured by default.
 
 When you deliberately send changes to Claude, Cursor or another coding agent,
 that provider processes the content under your account settings and its own
@@ -20,7 +19,7 @@ privacy terms.
   className="max-w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-4"
 >
   <table>
-    <caption>Design Mode extension storage</caption>
+    <caption>Dev Agent extension storage</caption>
     <thead>
       <tr>
         <th scope="col">Storage</th>
@@ -78,7 +77,7 @@ A session key is based on the page origin, path and query string. Comments are
 stored separately in local extension storage. Use the Changes tab to inspect,
 revert or clear recorded changes.
 
-Design Mode reads the rendered DOM, computed styles and geometry required for
+Dev Agent reads the rendered DOM, computed styles and geometry required for
 features you invoke. It cannot run on browser-internal pages, extension-store
 pages or other surfaces where the browser blocks extension scripts. Do not use
 it to capture passwords, private form data, confidential screenshots or content
@@ -96,9 +95,9 @@ panel memory.
 
 ### No MCP connection
 
-On a fresh install, Cloud is the selected mode but no Cloud credential exists.
-Design Mode leaves all MCP transports closed until you connect one. Copy as
-Prompt continues to work without MCP.
+On a fresh install, Local is the selected mode, and no local MCP bridge is
+running until you start it using a compatible coding client. Copy as Prompt
+continues to work without MCP.
 
 Normal webpage and browser actions can still make requests—for example, loading
 the page you opened or downloading media from a URL already present in that
@@ -108,8 +107,8 @@ Mode.
 ### Local mode
 
 Local mode connects the extension to the companion server on your machine over
-the token-authenticated `ws://127.0.0.1:9960` connection by default. Design Mode does not route that transport
-through its hosted relay.
+the token-authenticated `ws://127.0.0.1:9960` connection by default. Dev Agent does not route that transport
+through any hosted relay.
 
 The optional guided Local setup previews project configuration before writing
 only the files you confirm. Backups stay beside those files and may contain
@@ -119,29 +118,11 @@ round snapshots and session state stay in process memory.
 
 ### Cloud mode
 
-Choosing **Connect to Cloud** registers an anonymous device credential and opens
-an authenticated connection to `https://mcp.designmode.app`. The extension keeps
-the plaintext credential in `storage.local`. The service stores only its
-SHA-256 hash, an anonymous tenant identifier, and created/last-seen timestamps
-until the credential is revoked.
-
-Agent-to-extension requests and extension responses are temporarily queued in
-Redis. The implementation requests a 60-second expiry and normally deletes
-responses as soon as they are consumed. Queue insertion and expiry are separate
-operations, and expiry failure is suppressed, so 60 seconds is a best-effort
-target rather than a guaranteed maximum. The relay also keeps operational quota
-and presence state needed to operate the service.
-
-Structured service logs may include:
-
-- anonymous tenant identifier;
-- message or event type;
-- payload byte count;
-- latency and HTTP status;
-- bounded error codes or messages.
-
-The logging API does not accept selectors, screenshots or message payload
-bodies. Design Mode does not use relay traffic to train a model.
+Dev Agent has no official hosted Cloud relay configured. Selecting Cloud alone
+does not connect to a service, and the extension does not include an upstream
+cloud endpoint or credentials. Remote mode requires a separately deployed
+relay and a user-provided URL and credential. The operator of that relay
+determines its logging, storage, retention and access-control settings.
 
 ### Self-hosted mode
 
@@ -159,12 +140,12 @@ it under that provider's terms.
 
 Copy as Prompt writes a Markdown specification to your clipboard. Send to Agent
 makes the recorded changes available to a connected MCP client. Neither action
-grants Design Mode access to your repository; the coding agent must already have
+grants Dev Agent access to your repository; the coding agent must already have
 that access.
 
 ## Usage analytics
 
-Design Mode is free and MIT-licensed, with no paid version of the extension. It
+Dev Agent is free and MIT-licensed, with no paid version of the extension. It
 is a self-sustained project focused on features people regularly use. Release
 builds send usage analytics to PostHog without an opt-in and without a Settings
 off-switch. An unconfigured source build sends nothing. Analytics does not
@@ -183,7 +164,7 @@ This source does not verify the receiver's retention, deletion or billing
 settings. The marketing site is a separate project and is not included in these
 extension events.
 
-## What designmode.app collects
+## Website data when separately deployed
 
 The marketing and documentation site is separate from the extension.
 
