@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 // Build script for the browser extension.
 // Runs vite build once per entry point since content scripts need IIFE format.
-// A single dist/ + a single manifest.json serve BOTH Chrome and Firefox: each
-// browser reads its own manifest keys (side_panel/service_worker vs
-// sidebar_action/scripts) and ignores the other's, and the JS detects the
-// browser at runtime (src/platform/target.ts).
+// Create browser-specific manifests: Chrome MV3 rejects Firefox-only
+// background.scripts and warns about sidebar_action. Firefox retains those
+// fields in its own distribution; runtime browser detection remains shared.
 
 import { execFileSync } from 'child_process';
 import { cpSync, mkdirSync, existsSync, readFileSync, writeFileSync, lstatSync } from 'fs';
@@ -18,7 +17,9 @@ const require = createRequire(import.meta.url);
 const viteCli = resolve(dirname(require.resolve('vite/package.json')), 'bin/vite.js');
 
 const safari = process.argv.includes('--safari');
-const output = safari ? 'dist-safari' : 'dist';
+const firefox = process.argv.includes('--firefox');
+if (safari && firefox) throw new Error('Choose either --safari or --firefox');
+const output = safari ? 'dist-safari' : firefox ? 'dist-firefox' : 'dist';
 const entries = ['content', 'background', 'sidepanel', ...(safari ? ['devtools'] : [])];
 const isolated = safari || process.env.DM_ISOLATED_BUILD === '1';
 if (isolated && existsSync(resolve(__dirname, output)) && lstatSync(resolve(__dirname, output)).isSymbolicLink()) {
@@ -27,7 +28,7 @@ if (isolated && existsSync(resolve(__dirname, output)) && lstatSync(resolve(__di
 
 let buildEnv = process.env;
 try {
-  if (process.argv.slice(2).some(arg => arg !== '--analytics' && arg !== '--safari')) throw new Error('Unknown build option');
+  if (process.argv.slice(2).some(arg => arg !== '--analytics' && arg !== '--safari' && arg !== '--firefox')) throw new Error('Unknown build option');
   if (process.argv.includes('--analytics')) buildEnv = analyticsBuildEnv(__dirname);
 } catch (error) {
   console.error(error.message);
@@ -51,7 +52,18 @@ for (const entry of entries) {
 console.log('  Copying static assets...');
 try {
   const manifest = JSON.parse(readFileSync(resolve(__dirname, 'public/manifest.json'), 'utf8'));
-  if (safari) {
+  if (!safari && !firefox) {
+    // Chrome MV3 needs only service_worker; Firefox-specific keys are invalid.
+    delete manifest.background.scripts;
+    delete manifest.sidebar_action;
+    delete manifest.browser_specific_settings;
+  } else if (firefox) {
+    // Firefox uses background.scripts and sidebar_action instead.
+    delete manifest.background.service_worker;
+    delete manifest.background.type;
+    delete manifest.side_panel;
+    manifest.permissions = manifest.permissions.filter(permission => permission !== 'sidePanel');
+  } else if (safari) {
     delete manifest.side_panel;
     delete manifest.sidebar_action;
     delete manifest.browser_specific_settings;
