@@ -12,6 +12,26 @@ export function createMcpServer(dispatch: ToolDispatch = executeLocalTool): McpS
   );
 
   server.tool(
+    'get_focused_changes',
+    'Minimal unresolved Dev Agent edits with stable IDs, selectors, route information, original and final values. No redundant CSS block or resolved operations. Prefer this for first-pass implementation; use get_changes only when more context is needed.',
+    {
+      routeKey: z.string().optional().describe('Optional exact routeKey or pageUrl to limit the response to one route.'),
+    },
+    async ({ routeKey }) => dispatch('get_focused_changes', { routeKey })
+  );
+
+  server.tool(
+    'locate_react_source',
+    'Search a local React JSX/TSX checkout for verified component filename or debug-source path candidates. Returns actual paths, not inferred matches. Browser selectors alone cannot establish source ownership. Never treat medium-confidence results as authoritative.',
+    {
+      projectRoot: z.string().describe('Absolute path to the local checked-out project directory. No remote filesystem access.'),
+      componentName: z.string().optional().describe('React component name, when known from development-time source detection.'),
+      sourceHint: z.string().optional().describe('Relative source file hint from React debug metadata; verified against the project directory.'),
+    },
+    async ({ projectRoot, componentName, sourceHint }) => dispatch('locate_react_source', { projectRoot, componentName, sourceHint })
+  );
+
+  server.tool(
     'apply_changes',
     'Push CSS changes back to the browser for live preview. Pass an array of element changes — single edits use a one-element array. Style values are CSS strings (cubic-bezier, var(--token), keyframe names — anything you would write in a stylesheet).',
     {
