@@ -5,13 +5,8 @@ import { ArrowUpRight } from "lucide-react";
 
 import { withNavRef } from "@/lib/nav-ref";
 
-const REPO_URL = withNavRef("https://github.com/SandeepBaskaran/design-mode");
+const REPO_URL = withNavRef("https://github.com/prity-dhara/dev-design-mode");
 
-const SPONSORS_URL = withNavRef("https://github.com/sponsors/SandeepBaskaran");
-const PRODUCT_HUNT_URL = withNavRef(
-  "https://www.producthunt.com/products/design-mode",
-);
-const AUTHOR_URL = withNavRef("https://sandeepbaskaran.com");
 
 export function Footer() {
   const groups = [
@@ -49,9 +44,6 @@ export function Footer() {
       title: "Community",
       links: [
         { name: "GitHub", href: REPO_URL },
-
-        { name: "Product Hunt", href: PRODUCT_HUNT_URL },
-        { name: "Sponsor", href: SPONSORS_URL },
       ],
     },
   ];
@@ -72,7 +64,7 @@ export function Footer() {
               unoptimized
             />
             <span className="text-2xl font-semibold tracking-tight">
-              Design Mode
+              Dev Agent
             </span>
           </Link>
           <p className="mt-4 max-w-xs text-base leading-relaxed text-[#444444]">
@@ -118,18 +110,8 @@ export function Footer() {
           ))}
         </nav>
         <div className="text-muted-foreground col-span-full flex w-full flex-col items-center gap-2 text-center text-base md:flex-row md:justify-between md:text-left">
-          <p>© {new Date().getFullYear()} Design Mode</p>
-          <p>
-            Made by{" "}
-            <a
-              href={AUTHOR_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-primary focus-visible:outline-ring rounded-lg underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4"
-            >
-              Sandeep Baskaran
-            </a>
-          </p>
+          <p>© {new Date().getFullYear()} Dev Agent</p>
+
         </div>
       </div>
     </footer>
