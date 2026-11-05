@@ -266,6 +266,10 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
   const createdIds = new Set(
     domChanges.filter(d => d.action === 'duplicate' || d.action === 'insert').map(d => d.elementId),
   );
+  const finalMoves = new Map<string, (typeof domChanges)[number]>();
+  for (const change of domChanges) {
+    if (change.action === 'move' && change.destination) finalMoves.set(change.elementId, change);
+  }
   const moveTimestamps = new Map<string, number>();
   for (const d of domChanges) {
     if (d.action === 'move' && !createdIds.has(d.elementId)) moveTimestamps.set(d.elementId, d.timestamp);
@@ -358,7 +362,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
         ? `- ${label(c.elementId, ctx)}: Move from ${describeStored(c.origin)} to ${dest} (0-based child positions). Preserve its content and classes.`
         : `- ${label(c.elementId, ctx)}: Move to ${dest} (0-based child position). Preserve its content and classes.`;
     } else if ((c.action === 'duplicate' || c.action === 'insert') && c.destination) {
-      const destination = describeCurrent(getElementById(c.elementId), c.destination);
+      const destination = describeCurrent(getElementById(c.elementId), finalMoves.get(c.elementId)?.destination ?? c.destination);
       // Newly created nodes keep their own E-reference, so subsequent
       // text and appearance edits unambiguously apply to the new node.
       const origin = c.action === 'duplicate'
