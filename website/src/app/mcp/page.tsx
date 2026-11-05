@@ -335,7 +335,7 @@ export default function McpPage() {
                 <p>
                   Review and clone the{" "}
                   <a
-                    href="https://github.com/SandeepBaskaran/design-mode"
+                    href="https://github.com/prity-dhara/dev-design-mode"
                     className="underline underline-offset-4"
                   >
                     source repository
@@ -372,7 +372,7 @@ export default function McpPage() {
                 <p>
                   Deploy packages/mcp-cloud with Redis using its{" "}
                   <a
-                    href="https://github.com/SandeepBaskaran/design-mode/tree/main/packages/mcp-cloud"
+                    href="https://github.com/prity-dhara/dev-design-mode/tree/main/packages/mcp-cloud"
                     className="underline underline-offset-4"
                   >
                     deployment guide
