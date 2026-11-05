@@ -33,7 +33,7 @@ import { discoverSiteClasses } from './site-class-discovery';
 import { isTypingTarget } from './shortcut-binding';
 import { deleteElements, type DeleteCommand } from './delete-command';
 import { beginMove, type MoveCommand } from './move-command';
-import { captureMoveTextStyle, preserveMovedTextStyle } from './move-style-preservation';
+import { captureMoveTextStyle, preserveMovedTextStyle, isTextMoveTarget } from './move-style-preservation';
 import { previewOriginal, restoreOriginalPreview } from './original-preview';
 import { routeStore, loadSession, setRouteClearedHandler, discardActiveChanges, getSiteChangeReport, getSiteRouteGroups as getStoredSiteRouteGroups, getActiveRouteUrl, getRouteGeneration, switchActiveRoute, clearSavedRoute, clearSavedSite } from './change-tracker';
 import { importSiteChanges } from './site-import';
@@ -2826,7 +2826,7 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
         // .hero .paragraph or inherited styles on the old section.
         // Capture only for cross-parent moves; reordering siblings should
         // not create extra style changes.
-        const originalTextStyle = parent !== source.parentElement
+        const originalTextStyle = parent !== source.parentElement && isTextMoveTarget(source)
           ? captureMoveTextStyle(source) : null;
         parent.insertBefore(source, beforeNode);
         if (originalTextStyle) {
