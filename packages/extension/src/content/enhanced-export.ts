@@ -429,7 +429,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     entries.sort((a, b) => a.t - b.t);
     lines.push('');
     lines.push('## Changes');
-    if (entries.some(e => /\[-.*?-\]|\{\+.*?\+\}/.test(e.line))) {
+    if (textChanges.filter(c => !c.attributeName).length > 1 && entries.some(e => /\[-.*?-\]|\{\+.*?\+\}/.test(e.line))) {
       lines.push('> Text edits use git word-diff notation: `[-…-]` = removed, `{+…+}` = added, unmarked words are unchanged, and `…` marks unchanged text omitted for brevity. Apply the edit to the element — do not write the markers into the text.');
     }
     const hasBreakpoints = [...styleChanges, ...textChanges, ...domChanges]
