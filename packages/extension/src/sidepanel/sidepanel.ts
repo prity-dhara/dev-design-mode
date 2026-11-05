@@ -7301,7 +7301,7 @@ function renderBuilderPanel(): string {
   const kinds = [
     ['section', 'Section'], ['container', 'Container'], ['div', 'Div'],
     ['heading', 'Heading'], ['paragraph', 'Paragraph'], ['button', 'Button'],
-    ['image', 'Image'], ['card', 'Card'], ['grid', 'Grid'],
+    ['card', 'Card'], ['grid', 'Grid'],
   ];
   const topClasses = builderSiteClasses.slice(0, 130);
   const suggestions = topClasses.map(c =>
