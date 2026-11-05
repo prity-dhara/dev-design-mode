@@ -80,12 +80,18 @@ export function clearEmptyBuilderMarker(): void {
   emptyMarker?.remove();
   emptyMarker = null;
 }
+export function shouldShowEmptyBuilderMarker(
+  kind: BuilderKind,
+  element: Pick<HTMLElement, 'children' | 'textContent'>,
+): boolean {
+  return (kind === 'section' || kind === 'container' || kind === 'div' || kind === 'grid') &&
+    element.children.length === 0 && !element.textContent?.trim();
+}
 export function highlightInsertedBuilderElement(elementId: string, kind: BuilderKind): void {
   clearBuilderPreview();
   clearEmptyBuilderMarker();
-  if (!['section', 'container', 'div', 'grid'].includes(kind)) return;
   const target = getElementById(elementId);
-  if (!target || target.children.length || target.textContent?.trim()) return;
+  if (!target || !shouldShowEmptyBuilderMarker(kind, target)) return;
 
   const marker = document.createElement('div');
   marker.setAttribute('data-dm-builder-overlay', '');
@@ -99,7 +105,7 @@ export function highlightInsertedBuilderElement(elementId: string, kind: Builder
   emptyMarker = marker;
   const update = () => {
     if (emptyMarker !== marker) return;
-    if (!target.isConnected || target.children.length || target.textContent?.trim()) {
+    if (!target.isConnected || !shouldShowEmptyBuilderMarker(kind, target)) {
       clearEmptyBuilderMarker();
       return;
     }
