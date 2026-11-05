@@ -2060,8 +2060,17 @@ async function uploadReplacementImage(file: File, operation = beginInspectorOper
       headers: { 'content-type': 'application/json', 'x-design-mode-token': health.webSocketToken },
       body: JSON.stringify({ name: file.name, data: raw }),
     }));
-    const result = await operation.wait(response.json());
-    if (!response.ok || !result.src) throw new Error(result.error || 'Could not save image.');
+    // Older companion processes return plain text "not found" for the new route.
+    // Never JSON.parse an error page: guide the user to restart the upgraded local server.
+    const responseText = await operation.wait(response.text());
+    let result: { src?: string; relativePath?: string; error?: string } = {};
+    try { result = JSON.parse(responseText); } catch {
+      if (response.status === 404) {
+        throw new Error('Image upload is unavailable on the running local server. Stop the old MCP process, then restart Dev Agent with DM_ASSET_PROJECT_ROOT set to your local website folder.');
+      }
+      throw new Error('Local upload server returned an unexpected response (HTTP ' + response.status + ').');
+    }
+    if (!response.ok || !result.src) throw new Error(result.error || 'Could not save image (HTTP ' + response.status + ').');
     if (mediaInfo.kind === 'image') {
       await applyAttribute(selectionId, 'src', result.src, operation);
     } else {
