@@ -880,7 +880,12 @@ async function renderSiteExportText(format: string): Promise<string> {
       const render = format === 'tailwind' ? exportTailwind : format === 'scss' ? exportSCSS : format === 'jsx' ? exportJSX : exportCSS;
       return `/* Route: ${group.url.replace(/\*\//g, '* /')} */\n${render(group.styleChanges)}`;
     }
-    if (index === 0 && !pendingRouteReplay) return `## Route: ${group.url}\n\n` + (format === 'enhanced-github' ? exportEnhancedGitHubIssue() : exportMarkdown(group.comments));
+    if (index === 0 && !pendingRouteReplay) {
+      // Copy as Prompt already includes the page URL; avoid a duplicate Route heading.
+      return format === 'enhanced-github'
+        ? `## Route: ${group.url}\n\n` + exportEnhancedGitHubIssue()
+        : exportMarkdown(group.comments);
+    }
     return renderStoredRouteMarkdown(group);
   }).join('\n\n');
 }
