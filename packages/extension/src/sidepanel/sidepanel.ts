@@ -2250,7 +2250,7 @@ async function sendToAgent(operation = beginInspectorOperation()) {
     feedbackSession = res.supported ? parseFeedbackSession(res.session) : null;
     feedbackSentUntil = Date.now() + 1500;
     setTimeout(() => render(), 1500);
-    showCaptureToast('success', feedbackSession?.state === 'implementing' ? 'Feedback sent. Make your next edits while the agent works.' : 'Staged for your agent — run /design-mode to implement.');
+    showCaptureToast('success', feedbackSession?.state === 'implementing' ? 'Feedback sent. Make your next edits while the agent works.' : 'Staged for your agent — run /dev-agent to implement.');
   } else {
     showCaptureToast('error', 'Could not reach the agent — check the MCP status and retry.');
   }
@@ -6923,7 +6923,7 @@ function renderLiveFeedbackStatus(): string {
   if (mcpMode !== 'local' || !feedbackSession) return '';
   const stopped = feedbackSession.state === 'stopped';
   const label = stopped ? 'Stopped' : feedbackSession.state === 'waiting' ? 'Waiting for feedback' : 'Implementing';
-  const detail = stopped ? 'The extension cannot cancel commands already running in your agent; they may still finish. Run /design-mode again to start a new loop.' : feedbackSession.state === 'waiting' ? 'Make your edits, then Send to your AI agent.' : 'You can keep editing. Send the next round when the agent is waiting.';
+  const detail = stopped ? 'The extension cannot cancel commands already running in your agent; they may still finish. Run /dev-agent again to start a new loop.' : feedbackSession.state === 'waiting' ? 'Make your edits, then Send to your AI agent.' : 'You can keep editing. Send the next round when the agent is waiting.';
   return '<div style="padding:8px 12px 0;display:flex;gap:8px;align-items:center;">' +
     '<div role="status" aria-live="polite" style="flex:1;min-width:0;font-size:10px;line-height:1.5;color:var(--dm-text-secondary);"><strong style="color:var(--dm-text);">Live feedback · ' + label + '</strong><div>' + detail + '</div></div>' +
     (stopped ? '' : '<button data-dm-action="stop-live-feedback" title="End feedback rounds. Commands already running in your agent may still finish." style="padding:6px 9px;border-radius:5px;border:1px solid var(--dm-btn-border);background:var(--dm-btn-bg);color:var(--dm-danger);font:inherit;font-size:11px;cursor:pointer;">Stop</button>') + '</div>';
@@ -6970,7 +6970,7 @@ function renderSendAgentHelpOverlay(): string {
     steps = [
       'Open the <b>MCP page</b> (click the MCP chip up top) and click <b>Copy MCP config</b>.',
       'Paste it into your agent’s MCP settings (Claude Code, Cursor, Windsurf, …) and restart the agent.',
-      'Run ' + code('/design-mode') + ' in the agent — the MCP chip up top turns solid green.',
+      'Run ' + code('/dev-agent') + ' in the agent — the MCP chip up top turns solid green.',
     ];
   } else if (isCloud && mcpCloudToken) {
     intro = 'The cloud relay is unreachable right now.';
@@ -6983,14 +6983,14 @@ function renderSendAgentHelpOverlay(): string {
     steps = [
       'Open the <b>MCP page</b> (click the MCP chip up top) and click <b>Connect to Cloud</b>.',
       'Click <b>Copy MCP config</b> and paste it into your agent’s MCP settings (Claude Code, Cursor, Windsurf, …).',
-      'Restart the agent, then run ' + code('/design-mode') + ' in it.',
+      'Restart the agent, then run ' + code('/dev-agent') + ' in it.',
     ];
   } else {
     intro = 'The local companion server isn’t running. One-time setup:';
     steps = [
       'Register the server with your agent: ' + code('claude mcp add design-mode -- npm start --prefix &lt;repo&gt;/packages/mcp-local'),
       'Start your agent — it launches the server automatically.',
-      'Run ' + code('/design-mode') + ' in the agent.',
+      'Run ' + code('/dev-agent') + ' in the agent.',
     ];
   }
   const stepRows = steps.map((s, i) =>
@@ -9943,7 +9943,7 @@ function changeStatusBadge(s?: ChangeStatus): string {
   return '';
 }
 
-// "Set up your agent" — copies the /design-mode workflow command into your
+// "Set up your agent" — copies the /dev-agent workflow command into your
 // coding tool. The command body is identical across tools (it drives the
 // live MCP tools); only the save path differs, so each row copies the same
 // text and names where to drop it.
@@ -9956,7 +9956,7 @@ function renderAgentCommandCard(sS: string, sT: string, lS: string): string {
     '</div>'
   ).join('');
   return '<div style="' + sS + '"><div style="' + sT + '">Set up your agent</div>' +
-    '<div style="font-size:9px;color:var(--dm-text-dimmer);margin-bottom:8px;line-height:1.4;">Copy the <code style="font-family:SF Mono,monospace;">/design-mode</code> command into your coding tool, then run it after editing. It reads your changes and comments over MCP and resolves them as it works.</div>' +
+    '<div style="font-size:9px;color:var(--dm-text-dimmer);margin-bottom:8px;line-height:1.4;">Copy the <code style="font-family:SF Mono,monospace;">/dev-agent</code> command into your coding tool, then run it after editing. It reads your changes and comments over MCP and resolves them as it works.</div>' +
     '<div style="display:flex;flex-direction:column;gap:8px;">' + rows + '</div></div>';
 }
 
