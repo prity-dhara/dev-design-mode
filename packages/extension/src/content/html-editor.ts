@@ -87,6 +87,8 @@ export function duplicateElement(elementId: string): string | null {
   if (!canEditRoute()) return null;
   const el = getElementById(elementId);
   if (!el || isDmElement(el)) return null;
+  // Record the source before insertion changes positional selectors.
+  const sourceSelector = generateSelector(el);
   const clone = el.cloneNode(true) as HTMLElement;
   clone.removeAttribute('data-dm-id');
   clone.querySelectorAll('[data-dm-id]').forEach(c => c.removeAttribute('data-dm-id'));
@@ -108,7 +110,7 @@ export function duplicateElement(elementId: string): string | null {
     : undefined;
   recordDomChange(
     id, generateSelector(clone), 'duplicate', clone.tagName.toLowerCase(),
-    clone.outerHTML, destination,
+    clone.outerHTML, destination, undefined, sourceSelector,
   );
   return id;
 }
