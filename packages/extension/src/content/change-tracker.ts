@@ -4,6 +4,7 @@
 // ============================================================
 
 import { getElementById, generateSelector, describeElement, getComputedStyleSubset, reserveIdsAtLeast } from './helpers';
+import { getSourceLocation } from './source-detection';
 import { authoredTokenValueFor, bumpStyleGen } from './token-engine';
 import { DEFAULT_WS_PORT, DATA_ATTR, classifyBreakpoint, type Breakpoint } from '../shared';
 import { BUILTIN_KEYFRAMES } from './keyframes-library';
@@ -1487,8 +1488,23 @@ export async function getSiteChangeReport() {
   const routeGroups = await getSiteRouteGroups();
   const active = getChangeReport();
   const withRoute = <T extends object>(items: T[], group: RouteGroup) => items.map(item => ({ ...item, pageUrl: group.url, routeKey: group.routeKey }));
+  // Source hints only for elements we can still locate on the active page.
+  // React production bundles frequently omit debug metadata: absence is normal.
+  const sourceHints: Array<{ id: string; component?: string; file?: string; line?: number; framework: 'react' }> = [];
+  for (const change of [...styleChanges, ...textChanges, ...domChanges]) {
+    if (!getElementById(change.elementId)) continue;
+    const el = getElementById(change.elementId);
+    if (!el) continue;
+    const source = getSourceLocation(el);
+    if (source?.framework !== 'react') continue;
+    const file = source.cleanPath || (source.file !== 'unknown' ? source.file : undefined);
+    if (source.component || file) {
+      sourceHints.push({ id: change.id, component: source.component, file, line: source.line, framework: 'react' });
+    }
+  }
   return {
     ...active,
+    ...(sourceHints.length ? { sourceHints } : {}),
     routeGroups,
     styleChanges: routeGroups.flatMap((group, i) => withRoute(i === 0 && activeRouteLoaded ? active.styleChanges : group.styleChanges, group)),
     textChanges: routeGroups.flatMap((group, i) => withRoute(i === 0 && activeRouteLoaded ? active.textChanges : group.textChanges, group)),
