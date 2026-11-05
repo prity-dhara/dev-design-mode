@@ -42,7 +42,7 @@ for (const entry of entries) {
   console.log(`  Building ${entry}...`);
   execFileSync(process.execPath, [viteCli, 'build'], {
     cwd: __dirname,
-    env: { ...buildEnv, ENTRY: entry, DM_BROWSER: safari ? 'safari' : 'shared' },
+    env: { ...buildEnv, ENTRY: entry, DM_BROWSER: safari ? 'safari' : firefox ? 'firefox' : 'chrome' },
     stdio: 'inherit',
     shell: false,
   });
