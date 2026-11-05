@@ -87,9 +87,10 @@ test('duplicate instruction names the final destination and shares target with t
   ], [{
     id: 'duplicate-new', elementId: 'tag-new', selector: 'span.tag-new',
     action: 'duplicate', tagName: 'span', timestamp: 1,
+    sourceSelector: 'div.tag-list > span.tag:nth-of-type(3)',
     destination: { parentSelector: 'div.tag-list', index: 3 },
   }]);
-  assert.ok(result.includes('Duplicate into div.tag-list[3] (0-based child position)'));
+  assert.ok(result.includes('Duplicate source (div.tag-list > span.tag:nth-of-type(3)) into div.tag-list[3] (0-based child position)'));
   assert.ok(result.includes('E1 text'));
   assert.ok(result.includes('- `E1`: `span.tag-new`'));
 });

@@ -69,6 +69,8 @@ export interface DomChange {
   label?: string;
   action: 'delete' | 'duplicate' | 'move' | 'insert';
   tagName: string; outerHTML?: string;
+  // Original element path for duplicates; the new element has its own selector.
+  sourceSelector?: string;
   // Where the element ended up. Lets us replay the move / re-create the
   // duplicate at the right position. `parentId` is the data-dm-id of the
   // parent at record time; preferred on replay because the user-friendly
@@ -1290,7 +1292,8 @@ export function recordDomChange(
   elementId: string, selector: string, action: DomChange['action'],
   tagName: string, outerHTML?: string,
   destination?: DomChange['destination'],
-  origin?: DomChange['origin']
+  origin?: DomChange['origin'],
+  sourceSelector?: string,
 ): DomChange | null {
   // Dedup 'move' actions per element — if the user drags the same layer
   // around multiple times we only care about its final position, not the
@@ -1364,6 +1367,7 @@ export function recordDomChange(
     id: crypto.randomUUID(), elementId, selector, action,
     label: recordedEl ? describeElement(recordedEl) : undefined,
     tagName, outerHTML, destination,
+    ...(sourceSelector ? { sourceSelector } : {}),
     origin: inheritedOrigin,
     timestamp: Date.now(),
     ...bpMeta(),
