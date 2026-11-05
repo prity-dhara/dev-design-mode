@@ -26,6 +26,15 @@ export const MOVE_TEXT_PROPERTIES = [
 
 export type TextStyleSnapshot = Record<string, string>;
 
+/** Avoid overriding the inherited typography of an entire moved layout tree. */
+export function isTextMoveTarget(element: HTMLElement): boolean {
+  if (/^(P|H[1-6]|SPAN|A|LABEL|BUTTON|BLOCKQUOTE|LI|SMALL|STRONG|EM)$/.test(element.tagName)) return true;
+  // A div can be a text element in visual builders, but not if it wraps
+  // other layout elements. Direct non-whitespace text is our signal.
+  return element.tagName === 'DIV' &&
+    Array.from(element.childNodes).some(node => node.nodeType === 3 && !!node.textContent?.trim());
+}
+
 export function captureMoveTextStyle(element: Element): TextStyleSnapshot {
   const computed = window.getComputedStyle(element);
   return Object.fromEntries(
