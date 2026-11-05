@@ -72,7 +72,7 @@ test('copy prompt indexes the target selector once and skips no-op/resolved chan
     change({ id: 'resolved', timestamp: 2, oldText: '/one', newText: '/two', status: 'resolved' }),
     change({ id: 'noop', timestamp: 3, oldText: '/same', newText: '/same' }),
   ]);
-  assert.ok(result.includes('## Element targets'));
+  assert.ok(result.includes('## Targets'));
   assert.ok(result.includes('- `E1`: `a.link`'));
   assert.equal(result.split('a.link').length - 1, 1);
   assert.ok(result.includes('1. E1: Set href "/before" → "/after"'));
@@ -142,7 +142,7 @@ test('duplicate card then move and edit style and text exports one final creatio
       newValue: '#ff842e', timestamp: 4 },
   ]);
 
-  assert.ok(result.includes('## Element targets'));
+  assert.ok(result.includes('## Targets'));
   assert.ok(result.includes('Duplicate source (section.featured > article.card:nth-of-type(2)) into aside.recommendations[0]'));
   assert.equal((result.match(/Duplicate source/g) || []).length, 1);
   assert.ok(!result.includes('Move from section.featured'));
@@ -178,7 +178,7 @@ test('text inside duplicated list item identifies its new parent, not the origin
   }], [], { 'copied-item': duplicate, 'name-in-copy': nested });
   assert.ok(output.includes('E1 (inside newly created E2): Set text → "Arun"'));
   assert.ok(output.includes('E2: Duplicate source (ul.list > li:nth-of-type(4)) into ul.list[0]'));
-  assert.ok(output.includes('## Element targets'));
+  assert.ok(output.includes('## Targets'));
 });
 
 test('text without verified DOM ancestry does not claim it is inside a duplicate', () => {
@@ -245,4 +245,19 @@ test('copy prompt gives each duplicate, style, and text action its own numbered 
   assert.ok(result.includes('4. E1: Set text → "Continue"'));
   assert.ok(!result.includes('margin-top 0px → 1rem; background-color'));
   assert.equal((result.match(/Duplicate source/g) || []).length, 1);
+});
+
+test('compact copy prompt includes one route and no redundant introduction', () => {
+  const output = prompt([], [{
+    id: 'delete-cta', elementId: 'cta', selector: '#how > a.primary-button',
+    action: 'delete', tagName: 'a', timestamp: 1,
+    origin: { parentSelector: '#how', index: 2 },
+  }]);
+  assert.ok(output.startsWith('Page: https://example.test/active'));
+  assert.ok(output.includes('## Targets'));
+  assert.ok(output.includes('- `E1`: `#how > a.primary-button`'));
+  assert.ok(output.includes('## Changes\\n1. E1: Delete from #how[2].'));
+  assert.ok(!output.includes('Visual changes —'));
+  assert.ok(!output.includes('Selectors describe the current browser DOM'));
+  assert.equal((output.match(/https:\/\/example\.test\/active/g) || []).length, 1);
 });
