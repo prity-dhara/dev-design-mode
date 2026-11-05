@@ -2054,7 +2054,7 @@ async function uploadReplacementImage(file: File, operation = beginInspectorOper
     if (mediaInfo.kind === 'image') {
       await applyAttribute(selectionId, 'src', result.src, operation);
     } else {
-      await applyStyle('backgroundImage', 'url("' + result.src + '")', operation);
+      await applyStyle('backgroundImage', 'url("' + result.src + '")', false, operation);
     }
     mediaInfo = { ...mediaInfo, src: result.src, filename: file.name };
     lastMediaElementId = selectionId;
