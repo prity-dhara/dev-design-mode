@@ -20,9 +20,11 @@ export function canPreviewSplitText(el: HTMLElement): boolean {
   // Do not hide authored inline HTML or embedded media. If the element is
   // mixed content, retain its animation and only record a source edit.
   if (!Array.from(el.children).every(child => isGeneratedPart(child as HTMLElement))) return false;
+  // Node.ELEMENT_NODE = 1, Node.TEXT_NODE = 3. Using the numeric node
+  // types also allows this pure safety check to run in Node-based tests.
   return Array.from(el.childNodes).every(node =>
-    node.nodeType === Node.ELEMENT_NODE ||
-    (node.nodeType === Node.TEXT_NODE && !(node.textContent || '').trim()));
+    node.nodeType === 1 ||
+    (node.nodeType === 3 && !(node.textContent || '').trim()));
 }
 
 function ensureCss(): void {
