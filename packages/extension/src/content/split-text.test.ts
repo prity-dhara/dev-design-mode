@@ -251,3 +251,34 @@ test('known gsap_split_line-mask div remains recognized when no unrelated nested
     'gsap_split_line-mask', 'gsap_split_line'], 'DIV');
   assert.equal(api.isSplitTextHost(host), true);
 });
+
+test('nested GSAP DIV line masks use the full text editor rather than parent layout', () => {
+  const api = load();
+  const line = (name: string): any => ({
+    tagName: 'DIV', textContent: name, parentElement: null,
+    attributes: [], querySelector: () => null, querySelectorAll: () => [],
+    getAttribute: (key: string) => key === 'class' ? 'gsap_split_line' : null,
+  });
+  const first = line('First line');
+  const second = line('Second line');
+  const mask = (child: any): any => ({
+    tagName: 'DIV', textContent: child.textContent, parentElement: null,
+    attributes: [], querySelector: () => null,
+    querySelectorAll: () => [child],
+    getAttribute: (key: string) => key === 'class' ? 'gsap_split_line-mask' : null,
+  });
+  const maskA = mask(first);
+  const maskB = mask(second);
+  const host: any = {
+    tagName: 'DIV', textContent: 'First lineSecond line',
+    parentElement: null, attributes: [], getAttribute: () => '',
+    querySelectorAll: () => [maskA, first, maskB, second],
+    querySelector: () => null,
+  };
+  maskA.parentElement = host;
+  maskB.parentElement = host;
+  first.parentElement = maskA;
+  second.parentElement = maskB;
+  assert.equal(api.isSplitTextHost(host), true);
+  assert.equal(api.getSplitTextHost(second), host);
+});
