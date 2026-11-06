@@ -9,6 +9,33 @@ function looksLikeSplitWrapper(el: Element): boolean {
     Array.from(el.attributes).some(attr => DATA_MARKER.test(attr.name));
 }
 
+// Some GSAP and custom splitters generate plain <span> / <div> elements
+// without .word/.char/.line classes. Only infer a split when a text-only
+// host contains multiple small text fragments and transform/animation hints
+// (or a dense set of text fragments), rather than treating any styled span
+// as an editable animated heading.
+function looksLikeUnmarkedSplit(el: Element, descendants: Element[]): boolean {
+  const units = descendants.filter(node =>
+    (node.tagName === 'SPAN' || node.tagName === 'DIV') &&
+    !node.querySelector('span, div, p, h1, h2, h3, h4, h5, h6, a, button, input')
+  );
+  if (units.length < 3) return false;
+  const hostText = (el.textContent || '').trim();
+  if (!hostText || hostText.length < 8) return false;
+  const fragments = units.filter(node => (node.textContent || '').trim()).length;
+  if (fragments < 3) return false;
+  // Ordinary rich text and content sections with links are not SplitText.
+  if (el.querySelector('a, strong, em, b, i, ul, ol, [contenteditable="true"]')) return false;
+  const length = units.reduce((sum, node) => sum + (node.textContent || '').trim().length, 0);
+  if (length < hostText.replace(/\s/g, '').length * 0.65) return false;
+  const animated = units.some(node =>
+    /(?:transform|translate|will-change|animation|opacity)/i.test(node.getAttribute('style') || '') ||
+    /(?:split|stagger|reveal|animated|animate)/i.test(node.getAttribute('class') || '')
+  ) || /(?:split|stagger|reveal)/i.test(el.getAttribute('class') || '');
+  const words = hostText.split(/\s+/).filter(Boolean).length;
+  return animated || (units.length >= 5 && words >= 4 && units.length >= words - 1);
+}
+
 export function isSplitTextHost(el: Element): boolean {
   if (!TEXT_HOST.test(el.tagName)) return false;
   const descendants = Array.from(el.querySelectorAll('*'));
@@ -16,7 +43,7 @@ export function isSplitTextHost(el: Element): boolean {
   const wrappers = descendants.filter(looksLikeSplitWrapper);
   // Require multiple actual generated units: one incidental '.line' should
   // not make a complete normal heading behave as split text.
-  if (wrappers.length < 2) return false;
+  if (wrappers.length < 2 && !looksLikeUnmarkedSplit(el, descendants)) return false;
   // Do not turn a container with independent headings/paragraphs or
   // interactive controls into one editable sentence. GSAP also splits
   // text-only divs and spans, not just semantic headings.
