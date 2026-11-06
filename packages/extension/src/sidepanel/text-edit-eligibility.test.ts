@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isEditableTextOnlyDiv } from './text-edit-eligibility';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
+import { transformSync } from 'esbuild';
+
+const code = transformSync(readFileSync(new URL('./text-edit-eligibility.ts', import.meta.url), 'utf8'), {
+  loader: 'ts', format: 'cjs',
+}).code;
+const mod = { exports: {} as { isEditableTextOnlyDiv: (html: string, text: string | null | undefined) => boolean } };
+runInNewContext(code, { module: mod });
+const { isEditableTextOnlyDiv } = mod.exports;
 
 test('plain div text is editable, including Webflow opacity-75 div', () => {
   assert.equal(isEditableTextOnlyDiv('We organize enterprise context.', 'We organize enterprise context.'), true);
