@@ -15,6 +15,7 @@ import { captureTokenRollback } from './root-var-store';
 import { captureCommentPinsRollback } from './comments';
 import { DEFAULT_WS_PORT } from '@shared/constants';
 import { getElementById, getOrAssignId, generateSelector, commentSelector, reserveIdsAtLeast } from './helpers';
+import { restoreSplitTextSegments } from './split-text';
 import { setLayoutGuides as setLayoutGuidesOverlay, clearAllLayoutGuides, getLayoutGuidesFor } from './layout-guides';
 import {
   inspectElementStates, buildForceStateCss, setPageStateForceCss,
@@ -281,7 +282,7 @@ function getFullState() {
 function revertAllPageMutations() {
   // 1. Text changes: restore each tracked element's earliest oldText so
   //    multiple overlapping edits collapse to the original.
-  const firstTextOld = new Map<string, { elementId: string; oldText: string; isHtml?: boolean; attributeName?: string }>();
+  const firstTextOld = new Map<string, { elementId: string; oldText: string; isHtml?: boolean; isSplitText?: boolean; splitOriginalSegments?: string[]; attributeName?: string }>();
   for (const ch of getTextChanges()) {
     const key = `${ch.elementId}\0${ch.attributeName || 'content'}`;
     if (!firstTextOld.has(key)) firstTextOld.set(key, ch);
@@ -292,6 +293,7 @@ function revertAllPageMutations() {
     if (ch.attributeName) {
       if (ch.oldText) el.setAttribute(ch.attributeName, ch.oldText); else el.removeAttribute(ch.attributeName);
     } else if (ch.isHtml) el.innerHTML = ch.oldText;
+    else if (ch.isSplitText && ch.splitOriginalSegments) restoreSplitTextSegments(el, ch.splitOriginalSegments);
     else el.textContent = ch.oldText;
   }
 
@@ -1559,6 +1561,7 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
             if (textChange.attributeName) {
               if (textChange.oldText) el.setAttribute(textChange.attributeName, textChange.oldText); else el.removeAttribute(textChange.attributeName);
             } else if (textChange.isHtml) el.innerHTML = textChange.oldText;
+            else if (textChange.isSplitText && textChange.splitOriginalSegments) restoreSplitTextSegments(el, textChange.splitOriginalSegments);
             else el.textContent = textChange.oldText;
           }
           removeTextChange(msg.changeId);
