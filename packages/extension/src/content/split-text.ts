@@ -1,45 +1,67 @@
-// Treat animation-generated SplitText spans as one editable source element.
-// Do not use class names alone: .line/.word are common layout classes.
-const splitClasses = /^(?:line|lines|word|words|char|chars)$/;
+// GSAP SplitText and common custom Webflow SplitText wrapper names.
+// A single ".line" or ".word" class is not sufficient evidence of splitting.
+const wordClass = /^(?:word|words|gsap[_-]split[_-]word)$/i;
+const lineClass = /^(?:line|lines|gsap[_-]split[_-]line)$/i;
+const partClass = /^(?:line|lines|word|words|char|chars|gsap[_-]split[_-](?:line|word|char)(?:[_-]mask)?)$/i;
 const rememberedRoots = new WeakSet<HTMLElement>();
+
 function splitPart(el: HTMLElement): boolean {
-  return Array.from(el.classList).some(name => splitClasses.test(name)) ||
+  return Array.from(el.classList).some(name => partClass.test(name)) ||
     el.hasAttribute('data-split-line') || el.hasAttribute('data-split-word') ||
     el.hasAttribute('data-split-char');
 }
+function matchesClass(el: HTMLElement, pattern: RegExp): boolean {
+  return Array.from(el.classList).some(name => pattern.test(name));
+}
+function hasSplitPart(el: HTMLElement): boolean {
+  return splitPart(el) || !!el.querySelector('[data-split-line],[data-split-word],[data-split-char],.line,.lines,.word,.words,.char,.chars,.gsap_split_line,.gsap_split_word,.gsap_split_word-mask,.gsap_split_line-mask,.gsap-split-word,.gsap-split-word-mask');
+}
+function directGroups(el: HTMLElement): HTMLElement[] {
+  return Array.from(el.children).filter((child): child is HTMLElement =>
+    child instanceof HTMLElement && hasSplitPart(child));
+}
 export function isSplitTextRoot(el: HTMLElement): boolean {
-  if (rememberedRoots.has(el)) return true;
-  const parts = Array.from(el.querySelectorAll<HTMLElement>('*')).filter(splitPart);
-  if (!parts.length) return false;
-  const hasWordsOrChars = parts.filter(p => Array.from(p.classList).some(c => /^(?:word|words|char|chars)$/.test(c))).length >= 2;
-  const lines = parts.filter(p => Array.from(p.classList).some(c => /^(?:line|lines)$/.test(c)) || p.hasAttribute('data-split-line'));
-  const likelyGsap = !!el.getAttribute('aria-label') && parts.some(p => p.getAttribute('aria-hidden') === 'true');
-  const recognized = hasWordsOrChars || lines.length >= 2 || likelyGsap;
+  if (splitPart(el)) return false; // The generated wrapper itself is never the editable host.
+  if (rememberedRoots.has(el)) return true; // Remember the source after preview is flattened.
+  const children = Array.from(el.children) as HTMLElement[];
+  if (!children.length) return false;
+  const groups = directGroups(el);
+  // Only select the *closest text host*. Do not collapse an entire section
+  // containing multiple separate animated headings or unrelated content.
+  if (groups.length < 1 || groups.length !== children.length) return false;
+  const parts = groups.flatMap(group => [group, ...Array.from(group.querySelectorAll<HTMLElement>('*'))]);
+  const words = parts.filter(p => matchesClass(p, wordClass) || p.hasAttribute('data-split-word'));
+  const lines = parts.filter(p => matchesClass(p, lineClass) || p.hasAttribute('data-split-line'));
+  const gsap = parts.filter(p => Array.from(p.classList).some(c => /^gsap[_-]split[_-]/i.test(c)));
+  const recognized = words.length >= 2 || lines.length >= 2 ||
+    (gsap.length >= 2 && groups.length >= 2) ||
+    (!!el.getAttribute('aria-label') && parts.some(p => p.getAttribute('aria-hidden') === 'true'));
   if (recognized) rememberedRoots.add(el);
   return recognized;
 }
+
 export function splitTextRoot(target: HTMLElement): HTMLElement | null {
-  // Climb from the generated inner word/line/character to the original text host.
-  let current: HTMLElement | null = target;
-  while (current && splitPart(current)) current = current.parentElement;
-  if (!current) return null;
-  // Nested line > word > char can leave a non-split wrapper. Prefer the
-  // nearest qualifying heading/text host; never jump to a whole section.
-  const allowed = new Set(['H1','H2','H3','H4','H5','H6','P','SPAN','A','BLOCKQUOTE','LABEL','DIV']);
-  for (let el: HTMLElement | null = current, depth = 0; el && depth < 4; el = el.parentElement, depth++) {
-    if (allowed.has(el.tagName) && isSplitTextRoot(el)) return el;
-    if (['SECTION','ARTICLE','MAIN','BODY'].includes(el.tagName)) break;
+  // Traverse original Webflow/GSAP wrappers (e.g. word-mask > word) to the
+  // nearest actual text host, not the encompassing layout container.
+  let el: HTMLElement | null = target;
+  for (let depth = 0; el && depth < 10; el = el.parentElement, depth++) {
+    if (isSplitTextRoot(el)) return el;
+    if (['SECTION', 'ARTICLE', 'MAIN', 'BODY', 'HTML'].includes(el.tagName)) break;
   }
   return null;
 }
+
 export function splitTextValue(el: HTMLElement): string {
-  // GSAP SplitText uses aria-label to retain the unsplit accessible string.
   const label = el.getAttribute('aria-label');
   if (label && el.querySelector('[aria-hidden="true"]')) return label;
-  const lines = Array.from(el.children).filter(child => child instanceof HTMLElement && splitPart(child as HTMLElement));
-  if (lines.length > 1 && lines.every(line => Array.from((line as HTMLElement).classList).some(c => /^(?:line|lines)$/.test(c))))
-    return lines.map(line => (line.textContent || '').trim()).join(' ');
-  return el.textContent || '';
+  // Some custom Webflow splitters strip the spaces and use margins between
+  // generated word spans; textContent would then produce concatenated words.
+  const source = el.textContent || '';
+  if (/\s/.test(source)) return source;
+  const words = Array.from(el.querySelectorAll<HTMLElement>('*'))
+    .filter(p => matchesClass(p, wordClass) || p.hasAttribute('data-split-word'));
+  if (words.length >= 2) return words.map(word => word.textContent?.trim() || '').join(' ');
+  return source;
 }
 
 // Temporary visual cleanup while Design Mode is open. Preserve the exact
