@@ -107,7 +107,7 @@ function collectInnerTextTargets(el: HTMLElement): Array<{ id: string; tagName: 
     targets.push({
       id: getOrAssignId(child),
       tagName: child.tagName.toLowerCase(),
-      preview: label.replace(/\\s+/g, ' ').slice(0, 75),
+      preview: label.replace(/\s+/g, ' ').slice(0, 75),
     });
     if (targets.length >= 8) break;
   }
