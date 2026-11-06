@@ -331,7 +331,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
   const used = new Set<string>();
   const created = new Map<string, (typeof dom)[number]>(dom.filter(c => c.action === 'duplicate' || c.action === 'insert').map(c => [c.elementId, c] as const));
   const finalMoves = new Map<string, (typeof dom)[number]>(dom.filter(c => c.action === 'move' && c.destination).map(c => [c.elementId, c] as const));
-  const createdContext = (elementId: string): string => {
+  const createdContext = (elementId: string, recordedSelector: string): string => {
     const el = getElementById(elementId);
     if (created.has(elementId)) {
       const d = created.get(elementId)!;
@@ -342,14 +342,14 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
       const parent = getElementById(id);
       if (el && parent && parent !== el && parent.contains(el)) {
         const loc = finalMoves.get(id)?.destination ?? d.destination;
-        return compactSelector(elementId, d.selector) + ' inside new ' + d.tagName +
+        return compactSelector(elementId, recordedSelector) + ' inside new ' + d.tagName +
           (loc ? ' at ' + locationLabel(loc, id, true) : '');
       }
     }
     return '';
   };
   const elementLabel = (elementId: string, selector: string) =>
-    createdContext(elementId) || compactSelector(elementId, selector);
+    createdContext(elementId, selector) || compactSelector(elementId, selector);
 
   // Use one shared target when possible, otherwise label each affected item.
   const firstDom = dom.find(c => c.destination || c.origin);
@@ -376,8 +376,16 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
         (final ? ' → ' + locationLabel(final, change.elementId, true) : '') +
         '. Preserve styles and classes; edit the new copy only.';
     } else if (change.action === 'insert') {
+      // Include markup only when it contains useful structure or authored
+      // attributes. Empty divs/sections remain one short instruction.
+      const markup = (change.outerHTML || '')
+        .replace(/\\sdata-dm-id="[^"]*"/g, '')
+        .replace(/\\sdata-dm-[\\w-]+="[^"]*"/g, '');
+      const meaningful = /\\s(?:class|style|id|src|alt|href)=/.test(markup) ||
+        />\\s*[^<\\s]/.test(markup) || /<\\w[^>]*>\\s*<\\w/.test(markup);
       description = 'Add ' + change.tagName +
-        (final ? ' at ' + locationLabel(final, change.elementId, true) : '') + '.';
+        (final ? ' at ' + locationLabel(final, change.elementId, true) : '') +
+        (meaningful ? ': ' + markup : '.') ;
     } else if (change.action === 'move') {
       description = 'Move ' + elementLabel(change.elementId, change.selector) +
         (change.origin ? ' from ' + locationLabel(change.origin) : '') +
