@@ -58,11 +58,18 @@ describe('animated split text selection', () => {
     assert.equal(splitTextRoot(child as unknown as HTMLElement), null);
   });
   it('recognizes headings split into separate lines', () => {
-    const heading = node('H2', [], 'FirstSecond');
-    const first = node('DIV', ['line'], 'First');
-    const second = node('DIV', ['line'], 'Second');
+    const heading = node('H2', [], 'FirstSecond', { 'aria-label': 'First Second' });
+    const first = node('DIV', ['line'], 'First', { 'aria-hidden': 'true' });
+    const second = node('DIV', ['line'], 'Second', { 'aria-hidden': 'true' });
     children(heading, [first, second]);
     assert.equal(splitTextRoot(second as unknown as HTMLElement), heading);
+  });
+  it('leaves ordinary .line layout components intact', () => {
+    const wrapper = node('DIV', ['feature-row'], 'Features');
+    const a = node('DIV', ['line'], 'Feature A');
+    const b = node('DIV', ['line'], 'Feature B');
+    children(wrapper, [a,b]);
+    assert.equal(isSplitTextRoot(wrapper as unknown as HTMLElement), false);
   });
   it('recognizes nested Webflow gsap_split_word-mask > gsap_split_word wrappers', () => {
     const paragraph = node('DIV', ['text-size-regular'], 'GalentAI builds a context graph');
