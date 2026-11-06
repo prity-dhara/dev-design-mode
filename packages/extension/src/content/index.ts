@@ -28,6 +28,7 @@ import { initCustomCursor, applyBaseCursor, clearBaseCursor } from './custom-cur
 import { getStyleChanges, getTextChanges, getDomChanges, clearAllChanges, applyStyleChange, applyWithCompanions, computeCompanions, applyTextChange, recordSplitTextSourceChange, applyHtmlChange, applyAttributeChange, removeStyleChange, removeDomChange, removeTextChange, recordDomChange, connectToServer, disconnectFromServer, isConnected, isAgentConnected, getChangeReport, reorderChange, getAllChanges, replaySession, setOverridesEnabled, applyChangesPayload, setUnhandledMessageHandler, sendRelayResponse, setChangesStatus, syncCommentChange, syncCommentDeleted, stageAgentHandoff, getFeedbackSessionView, isLiveFeedbackSupported, stopFeedbackSessionFromUi } from './change-tracker';
 import { isSafeRichTextHref } from '../rich-text-preservation';
 import { isSplitTextRoot, splitTextRoot, splitTextValue, splitTextSourceHint, setSplitTextDraft, clearSplitTextDraft } from './split-text';
+import { setSplitTextStaticPreview, clearSplitTextStaticPreview, clearAllSplitTextStaticPreviews } from './split-text-preview';
 import { copyElement, pasteElement, duplicateElement, moveElement } from './html-editor';
 import { isTypingTarget } from './shortcut-binding';
 import { deleteElements, type DeleteCommand } from './delete-command';
@@ -289,6 +290,7 @@ function revertAllPageMutations() {
     if (!el) continue;
     if ((ch as typeof ch & { sourceOnly?: boolean }).sourceOnly) {
       clearSplitTextDraft(el);
+      clearSplitTextStaticPreview(el);
       continue;
     }
     if (ch.attributeName) {
@@ -952,8 +954,14 @@ async function saveLogicalSplitText(id: string, el: HTMLElement, nextText: strin
   } catch { /* An inaccessible page-world instance is expected on most sites. */ }
   if (!el.isConnected || !canEditRoute()) return 'editing-blocked';
   recordSplitTextSourceChange(id, nextText, original, hint);
-  if (nextText === original) clearSplitTextDraft(el);
-  else setSplitTextDraft(el, nextText);
+  if (nextText === original) {
+    clearSplitTextDraft(el);
+    clearSplitTextStaticPreview(el);
+  } else {
+    setSplitTextDraft(el, nextText);
+    if (live) clearSplitTextStaticPreview(el);
+    else setSplitTextStaticPreview(el, nextText);
+  }
   undoStack.push({ kind: 'text', elementId: id, oldText: current, newText: nextText, sourceOnly: true });
   redoStack.length = 0;
   return live ? 'animation-rebuilt' : `source-only: ${hint}`;
@@ -995,6 +1003,8 @@ function enable() {
 function disable() {
   if (!on) return;
   on = false;
+  // Restore the page's real GSAP spans/animation when leaving the editor.
+  clearAllSplitTextStaticPreviews();
   // No SplitText DOM replacement is needed; leave the site's animation intact.
   activationGeneration++;
   document.removeEventListener('keydown', onHistoryKeyDown, true);
@@ -1399,8 +1409,13 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
             const initial = getTextChanges().find(c => c.elementId === entry.elementId)?.oldText || splitTextValue(el);
             const hint = splitTextSourceHint(el, generateSelector(el));
             recordSplitTextSourceChange(entry.elementId, entry.oldText, initial, hint);
-            if (entry.oldText === initial) clearSplitTextDraft(el);
-            else setSplitTextDraft(el, entry.oldText);
+            if (entry.oldText === initial) {
+              clearSplitTextDraft(el);
+              clearSplitTextStaticPreview(el);
+            } else {
+              setSplitTextDraft(el, entry.oldText);
+              setSplitTextStaticPreview(el, entry.oldText);
+            }
             void browser.runtime.sendMessage({ type: 'DM_SPLIT_TEXT_APPLY', elementId: entry.elementId, text: entry.oldText }).catch(() => {});
           }
         } else if (entry.kind === 'text') {
@@ -1464,8 +1479,13 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
           if (el) {
             const initial = getTextChanges().find(c => c.elementId === entry.elementId)?.oldText || splitTextValue(el);
             recordSplitTextSourceChange(entry.elementId, entry.newText, initial, splitTextSourceHint(el, generateSelector(el)));
-            if (entry.newText === initial) clearSplitTextDraft(el);
-            else setSplitTextDraft(el, entry.newText);
+            if (entry.newText === initial) {
+              clearSplitTextDraft(el);
+              clearSplitTextStaticPreview(el);
+            } else {
+              setSplitTextDraft(el, entry.newText);
+              setSplitTextStaticPreview(el, entry.newText);
+            }
             void browser.runtime.sendMessage({ type: 'DM_SPLIT_TEXT_APPLY', elementId: entry.elementId, text: entry.newText }).catch(() => {});
           }
         } else if (entry.kind === 'text') {
@@ -1609,6 +1629,7 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
           if (el) {
             if (textChange.sourceOnly) {
               clearSplitTextDraft(el);
+              clearSplitTextStaticPreview(el);
             } else if (textChange.attributeName) {
               if (textChange.oldText) el.setAttribute(textChange.attributeName, textChange.oldText); else el.removeAttribute(textChange.attributeName);
             } else if (textChange.isHtml) el.innerHTML = textChange.oldText;
