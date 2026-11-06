@@ -33,9 +33,13 @@ function splitEvidence(el: HTMLElement): boolean {
   if (!direct.length) return false;
   const all = direct.flatMap(c => [c, ...descendants(c)]);
   const namedGsap = all.some(c => Array.from(c.classList || []).some(cls => /^gsap[_-]split[_-]/i.test(cls)));
-  const nested = all.filter(c => isSplitPart(c)).length >= 2;
-  const repeated = direct.length >= 2;
-  return namedGsap || nested || repeated;
+  const explicitDataMarker = all.some(c =>
+    generatedAttribute.some(name => c.hasAttribute(name)));
+  // Generic .line/.word names are also used for ordinary Webflow layouts.
+  // Only unwrap those when their accessible text indicates generated markup.
+  const accessibleSplit = !!el.getAttribute('aria-label') &&
+    all.some(c => c.getAttribute('aria-hidden') === 'true');
+  return namedGsap || explicitDataMarker || accessibleSplit;
 }
 
 export function isSplitTextRoot(el: HTMLElement): boolean {
