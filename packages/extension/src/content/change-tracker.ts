@@ -779,6 +779,9 @@ export function applyChangesPayload(input: { styleChanges: StyleChange[]; textCh
         (document.querySelector(`[${DATA_ATTR}="${c.elementId}"]`) as HTMLElement | null) ||
         (document.querySelector(c.selector) as HTMLElement | null);
       if (!el) continue;
+      // Older saved plain-text edits may target a live GSAP SplitText host.
+      // Never replay them into generated character/word/line spans.
+      if (isSplitTextRoot(el) && !c.attributeName) continue;
       // Stamp the id so id-scoped rules below can bind, even if the
       // element didn't have data-dm-id before.
       if (!el.hasAttribute(DATA_ATTR)) el.setAttribute(DATA_ATTR, c.elementId);
