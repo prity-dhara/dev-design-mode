@@ -58,6 +58,10 @@ export interface TextChange {
   // When true, oldText/newText carry HTML (innerHTML); revert paths must
   // use el.innerHTML, not el.textContent. Set by applyHtmlChange.
   isHtml?: boolean;
+  // A SplitText edit is a source-level intent. Generated wrappers and
+  // live GSAP timelines must never be overwritten by route replay.
+  sourceOnly?: boolean;
+  sourceHint?: string;
   attributeName?: string;
   status?: ChangeStatus;
   viewportWidth?: number;
@@ -769,6 +773,7 @@ export function applyChangesPayload(input: { styleChanges: StyleChange[]; textCh
       && (!c.newText || isSafeRichTextHref(c.newText));
   });
   for (const c of safeTextChanges) {
+    if (c.sourceOnly) continue; // Preserve original GSAP wrappers and timeline.
     try {
       const el =
         (document.querySelector(`[${DATA_ATTR}="${c.elementId}"]`) as HTMLElement | null) ||
@@ -1186,6 +1191,41 @@ export function applyTextChange(
   return change;
 }
 
+// Records one logical text change for the ORIGINAL SplitText host without
+// changing any generated span. The page-world bridge may separately rebuild
+// a registered animation; when it is unavailable, the source edit is still
+// available to MCP/code agents with an exact selector/source hint.
+export function recordSplitTextSourceChange(
+  elementId: string, text: string, sourceText: string, sourceHint: string,
+): TextChange | null {
+  if (!canEditRoute()) return null;
+  const el = getElementById(elementId);
+  if (!el) return null;
+  const existingIdx = textChanges.findIndex(c => c.elementId === elementId && !c.attributeName);
+  const original = existingIdx >= 0 ? textChanges[existingIdx].oldText : sourceText;
+  if (text === original) {
+    if (existingIdx >= 0) {
+      textChanges.splice(existingIdx, 1);
+      persistSession();
+    }
+    return null;
+  }
+  const change: TextChange = {
+    ...(existingIdx >= 0 ? textChanges[existingIdx] : {
+      id: crypto.randomUUID(), elementId, selector: generateSelector(el),
+      label: describeElement(el) + ' (GSAP SplitText source)',
+      oldText: original,
+    }),
+    newText: text, timestamp: Date.now(), sourceOnly: true, sourceHint,
+    isHtml: false, ...bpMeta(),
+  };
+  if (existingIdx >= 0) textChanges[existingIdx] = change;
+  else textChanges.push(change);
+  syncTextChange(change);
+  persistSession();
+  return change;
+}
+
 // Same shape as applyTextChange, but writes innerHTML so rich-text edits
 // (bold / italic / lists / links from the side panel's contenteditable)
 // preserve formatting on the page AND through revert. Marks the record
@@ -1449,6 +1489,7 @@ export function getChangeReport() {
       viewportWidth: c.viewportWidth, breakpoint: c.breakpoint,
       selector: liveSelector(c.elementId, c.selector), label: c.label,
       oldText: c.oldText, newText: c.newText, attributeName: c.attributeName,
+      sourceOnly: c.sourceOnly, sourceHint: c.sourceHint,
     })),
     domChanges: domChanges.map(c => {
       // Moves carry both ends: origin's parent selector re-resolved via
