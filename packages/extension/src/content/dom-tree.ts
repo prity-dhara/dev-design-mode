@@ -3,7 +3,7 @@
 // ============================================================
 
 import { getOrAssignId } from './helpers';
-import { isGeneratedSplitWrapper } from './split-text';
+import { isLogicalSplitWrapper } from './split-text';
 import { getComponentHierarchy } from './source-detection';
 
 export interface DomNode {
@@ -39,7 +39,7 @@ export function buildDomTree(root: HTMLElement = document.body): DomNode[] {
     if (SKIP_TAGS.has(node.tagName)) return;
     // GSAP generates these temporary wrappers at runtime; they are not
     // Webflow-authored layers and must not be editable as separate elements.
-    if (isGeneratedSplitWrapper(node)) return;
+    if (isLogicalSplitWrapper(node)) return;
     if (DM_IDS.has(node.id)) return;
     if (node.id?.startsWith('dm-')) return;
     if (node.classList?.contains('dm-comment-pin')) return;
@@ -89,7 +89,7 @@ export function buildDomTree(root: HTMLElement = document.body): DomNode[] {
     //   • Open shadow roots → walked as siblings of the host's normal children.
     //   • Same-origin iframes → walked as siblings, prefixed with their own iframe node.
     //   • CSS ::before / ::after → virtual children when their `content` is set.
-    const childCount = Array.from(node.children).filter(child => !isGeneratedSplitWrapper(child as HTMLElement)).length +
+    const childCount = Array.from(node.children).filter(child => !isLogicalSplitWrapper(child as HTMLElement)).length +
       (node.shadowRoot ? 1 : 0) +
       (node.tagName === 'IFRAME' ? 1 : 0) +
       (pseudoHasContent(node, '::before') ? 1 : 0) +
