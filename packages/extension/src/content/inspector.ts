@@ -3,6 +3,7 @@
 // ============================================================
 
 import { getOrAssignId, getElementById, getElementRect, generateSelector, getBreadcrumbs, getComputedStyleSubset } from './helpers';
+import { getSplitTextHost, isSplitTextHost } from './split-text';
 import { getAuthoredVarsForElement, getAuthoredShadowVars, type PropToken, type ShadowVarInfo } from './token-engine';
 import { inspectAuthoredSizing, unknownDimension, type AuthoredDimension } from './authored-sizing';
 import { showHover, hideHover, showSelect, updateSelectPosition, isOverlayElement } from './overlays';
@@ -24,6 +25,7 @@ export type ElementInfo = Pick<SharedElementInfo, 'rect' | 'childGap'> & {
   // multi-token shadow chip (a single `styleTokens` entry can't hold a stack).
   shadowVars: Record<string, ShadowVarInfo>;
   textContent: string | null; innerHTML: string;
+  splitText?: boolean;
   attributes: Record<string, string>; selector: string;
   iconInfo?: IconInfo;
   parentDisplay?: string;
@@ -114,6 +116,7 @@ export function buildElementInfo(el: HTMLElement, skipTokens = false): ElementIn
     shadowVars: skipTokens ? {} : getAuthoredShadowVars(el),
     rect: getElementRect(el),
     textContent: el.textContent?.slice(0, 500) || null,
+    splitText: isSplitTextHost(el),
     innerHTML,
     attributes: attrs, selector: generateSelector(el),
     iconInfo: detectIconInfo(el),
@@ -140,7 +143,8 @@ function isDMElement(el: HTMLElement): boolean {
 
 function handleMouseOver(e: MouseEvent) {
   if (isResizing()) return;
-  const t = e.target as HTMLElement;
+  const rawTarget = e.target as HTMLElement;
+  const t = rawTarget && !isDMElement(rawTarget) ? (getSplitTextHost(rawTarget) || rawTarget) : rawTarget;
   if (!t || isDMElement(t)) return;
   showHover(t);
 
@@ -205,7 +209,8 @@ function handleMouseOut() {
 // drag — armMoveDrag waits for a 3 px movement before committing, so a
 // plain click on the same element still falls through to handleClick.
 function handleMouseDown(e: MouseEvent) {
-  const t = e.target as HTMLElement;
+  const rawTarget = e.target as HTMLElement;
+  const t = rawTarget && !isDMElement(rawTarget) ? (getSplitTextHost(rawTarget) || rawTarget) : rawTarget;
   if (!t || isDMElement(t)) return;
   e.preventDefault();
   if (e.shiftKey) {
@@ -225,7 +230,8 @@ function handleMouseDown(e: MouseEvent) {
 }
 
 function handleClick(e: MouseEvent) {
-  const t = e.target as HTMLElement;
+  const rawTarget = e.target as HTMLElement;
+  const t = rawTarget && !isDMElement(rawTarget) ? (getSplitTextHost(rawTarget) || rawTarget) : rawTarget;
   if (!t || isDMElement(t)) return;
   e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
   // Cancel any pending hover info — selection takes precedence
