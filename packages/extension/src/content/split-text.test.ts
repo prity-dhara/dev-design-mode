@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isSplitTextRoot, isGeneratedSplitWrapper, splitTextRoot, splitTextValue } from './split-text.ts';
+import { isSplitTextRoot, isGeneratedSplitWrapper, splitTextRoot, splitTextValue, setSplitTextDraft, clearSplitTextDraft } from './split-text.ts';
 
 type FakeEl = {
   tagName: string;
@@ -70,6 +70,31 @@ describe('animated split text selection', () => {
     const b = node('DIV', ['line'], 'Feature B');
     children(wrapper, [a,b]);
     assert.equal(isSplitTextRoot(wrapper as unknown as HTMLElement), false);
+  });
+  it('resolves generated characters to the original H3 without altering wrappers', () => {
+    const heading = node('H3', ['heading-style-h3'], 'Hello', { 'aria-label': 'Hello' });
+    const line = node('DIV', ['line'], 'Hello', { 'aria-hidden': 'true' });
+    const first = node('SPAN', ['char'], 'H');
+    const second = node('SPAN', ['char'], 'e');
+    children(line, [first, second]);
+    children(heading, [line]);
+    assert.equal(splitTextRoot(second as unknown as HTMLElement), heading);
+    assert.equal(heading.children[0], line); // No destructive DOM rewrite.
+    assert.equal(line.children[1], second);
+    assert.equal(splitTextValue(heading as unknown as HTMLElement), 'Hello');
+  });
+  it('keeps the generated spans unchanged when staging a source-only draft', () => {
+    const heading = node('H3', ['hero-heading'], 'HelloWorld');
+    const first = node('SPAN', ['gsap_split_word'], 'Hello');
+    const second = node('SPAN', ['gsap_split_word'], 'World');
+    children(heading, [first, second]);
+    assert.equal(splitTextValue(heading as unknown as HTMLElement), 'Hello World');
+    setSplitTextDraft(heading as unknown as HTMLElement, 'New heading');
+    assert.equal(splitTextValue(heading as unknown as HTMLElement), 'New heading');
+    assert.equal(heading.children.length, 2);
+    assert.equal(heading.children[0], first);
+    clearSplitTextDraft(heading as unknown as HTMLElement);
+    assert.equal(splitTextValue(heading as unknown as HTMLElement), 'Hello World');
   });
   it('recognizes nested Webflow gsap_split_word-mask > gsap_split_word wrappers', () => {
     const paragraph = node('DIV', ['text-size-regular'], 'GalentAI builds a context graph');
