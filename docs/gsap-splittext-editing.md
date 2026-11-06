@@ -13,8 +13,18 @@ closure. An extension cannot retrieve that private instance from the DOM.
 Without access to the instance, the editor **does not** modify generated spans
 or call `revert()`. It records one source-text change containing the original
 host selector and page URL for an agent or Webflow developer to implement.
-Styling changes target the source host, not its words. The running animation
-continues untouched.
+Where the host contains only generated SplitText children, Design Mode also
+temporarily hides those spans and renders the edited text using a CSS
+`::before` preview. The original animation nodes and timeline stay intact,
+and closing Design Mode restores the animated page without replacing nodes.
+If the host mixes authored inline HTML with generated spans, it leaves the
+animation visible and records a source-only change instead.
+
+Selecting a wrapper that contains multiple text elements shows a **Text inside**
+section listing those text elements. Click a text target to select its original
+host and open **Text Content**; reviewer comments do not perform edits.
+Styling changes target the source host and mirror typography to generated
+words without changing GSAP transforms.
 
 On Webflow the page URL + CSS selector is a locator, not a claimed file path.
 
