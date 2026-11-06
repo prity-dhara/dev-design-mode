@@ -7752,7 +7752,12 @@ function renderDesignTab(): string {
     tbBtn('createLink', '🔗', 'Link the selected text (you\'ll be prompted for URL)') +
     tbBtn('removeFormat', '⨯ fmt', 'Strip all formatting') +
     '</div>';
-  const textField = showTextEdit
+  const textField = showTextEdit && (displayInfo as any).splitText
+    ? '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">' +
+      '<label style="font-size:9px;color:var(--dm-text-muted);text-transform:uppercase;">Animated Text (GSAP / SplitText)</label>' +
+      '<textarea data-dm-split-text class="dm-input" rows="4" style="width:100%;min-height:88px;font:13px/1.5 inherit;line-height:1.5;padding:8px;box-sizing:border-box;resize:vertical;">' + escapeAttr(textVal) + '</textarea>' +
+      '<span style="font-size:10px;color:var(--dm-text-muted);">Edit the whole heading. The animation wrappers are preserved; update the original source and re-split for final responsive line breaks.</span></div>'
+    : showTextEdit
     ? '<div style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px;">' +
       '<label style="font-size:9px;color:var(--dm-text-muted);text-transform:uppercase;letter-spacing:0.4px;">Text Content</label>' +
       richToolbar +
@@ -13930,7 +13935,7 @@ function setupDelegation() {
     }
 
     // Textarea text change
-    const textArea = target.closest<HTMLTextAreaElement>('[data-dm-text]');
+    const textArea = target.closest<HTMLTextAreaElement>('[data-dm-text], [data-dm-split-text]');
     if (textArea) {
       runInspectorAction(applyText(textArea.value));
       return;
