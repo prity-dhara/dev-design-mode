@@ -26,7 +26,7 @@ export type ElementInfo = Pick<SharedElementInfo, 'rect' | 'childGap'> & {
   // multi-token shadow chip (a single `styleTokens` entry can't hold a stack).
   shadowVars: Record<string, ShadowVarInfo>;
   textContent: string | null; innerHTML: string; splitText?: boolean; editableTextHost?: boolean; sourceHint?: string;
-  textTargets?: Array<{ id: string; tagName: string; preview: string }>;
+  textTargets?: Array<{ id: string; tagName: string; preview: string; text: string; splitText: boolean }>;
   attributes: Record<string, string>; selector: string;
   iconInfo?: IconInfo;
   parentDisplay?: string;
@@ -90,14 +90,14 @@ function detectIconInfo(el: HTMLElement): IconInfo | undefined {
 // When an outer Webflow wrapper is selected, offer explicit inner text
 // targets instead of converting the whole card/section into one text field.
 // Never guess between multiple paragraphs or include generated GSAP spans.
-function collectInnerTextTargets(el: HTMLElement): Array<{ id: string; tagName: string; preview: string }> {
+function collectInnerTextTargets(el: HTMLElement): Array<{ id: string; tagName: string; preview: string; text: string; splitText: boolean }> {
   if (['HTML', 'BODY'].includes(el.tagName)) return [];
   if (isSplitTextRoot(el) || isEditableTextHost(el)) return [];
   const descendants = Array.from(el.querySelectorAll<HTMLElement>(
     'h1,h2,h3,h4,h5,h6,p,blockquote,li,figcaption,div'
   ));
   if (descendants.length > 120) return []; // Avoid large page-level containers.
-  const targets: Array<{ id: string; tagName: string; preview: string }> = [];
+  const targets: Array<{ id: string; tagName: string; preview: string; text: string; splitText: boolean }> = [];
   for (const child of descendants) {
     if (!child.isConnected || (!isSplitTextRoot(child) && !isEditableTextHost(child) &&
       !/^(H[1-6]|P|BLOCKQUOTE|LI|FIGCAPTION)$/.test(child.tagName))) continue;
@@ -108,6 +108,8 @@ function collectInnerTextTargets(el: HTMLElement): Array<{ id: string; tagName: 
       id: getOrAssignId(child),
       tagName: child.tagName.toLowerCase(),
       preview: label.replace(/\s+/g, ' ').slice(0, 75),
+      text: label.slice(0, 10000),
+      splitText: isSplitTextRoot(child),
     });
     if (targets.length >= 8) break;
   }
