@@ -145,3 +145,39 @@ test('animated split word markup with a nested semantic heading is not treated a
   };
   assert.equal(api.isSplitTextHost(layout), false);
 });
+
+
+test('gsap_split_line-mask and gsap_split_line identify the complete host', () => {
+  const api = load();
+  const text = heading([
+    'gsap_split_line-mask', 'gsap_split_line',
+    'gsap_split_line-mask', 'gsap_split_line',
+  ], 'DIV');
+  const mask: any = {
+    tagName: 'SPAN', parentElement: text, attributes: [], textContent: 'services.',
+    getAttribute: (name: string) => name === 'class' ? 'gsap_split_line-mask' : null,
+    querySelectorAll: () => [wrapper('gsap_split_line')],
+    querySelector: () => null,
+  };
+  const leaf: any = {
+    tagName: 'SPAN', parentElement: mask, attributes: [], textContent: 'services.',
+    getAttribute: (name: string) => name === 'class' ? 'gsap_split_line' : null,
+    querySelectorAll: () => [], querySelector: () => null,
+  };
+  assert.equal(api.isSplitTextHost(text), true);
+  assert.equal(api.getSplitTextHost(leaf), text);
+});
+
+test('editing line-split text keeps words intact across GSAP text nodes', () => {
+  const api = load();
+  const element = heading(['gsap_split_line-mask', 'gsap_split_line',
+    'gsap_split_line-mask', 'gsap_split_line']);
+  element.nodes = [makeNode('A whole first line '), makeNode('and second line')];
+  const value = 'Whole text needs to change, preserving the spaces between each word.';
+  assert.equal(api.previewSplitText(element, value), true);
+  assert.equal(element.nodes.map((node: any) => node.nodeValue).join(''), value);
+  assert.ok(element.nodes.every((node: any) => {
+    const fragment = node.nodeValue as string;
+    return !fragment || fragment.endsWith(' ') || node === element.nodes.at(-1);
+  }));
+});
