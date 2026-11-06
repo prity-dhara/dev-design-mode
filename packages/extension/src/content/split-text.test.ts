@@ -128,6 +128,22 @@ describe('animated split text selection', () => {
     children(layout, badges);
     assert.equal(isSplitTextRoot(layout as unknown as HTMLElement), false);
   });
+  it('groups styled GSAP spans that lack conventional split class names', () => {
+    const paragraph = node('P', ['body-copy'], 'Invest globally from India in dollars');
+    const words = ['Invest', 'globally', 'from', 'India', 'in', 'dollars']
+      .map(word => node('SPAN', ['custom-word-animation'], word, { style: 'display:inline-block' }));
+    children(paragraph, words);
+    assert.equal(isSplitTextRoot(paragraph as unknown as HTMLElement), true);
+    assert.equal(splitTextRoot(words[2] as unknown as HTMLElement), paragraph);
+    assert.equal(splitTextValue(paragraph as unknown as HTMLElement), 'Invest globally from India in dollars');
+  });
+  it('never treats a layout div with several labeled spans as one text host', () => {
+    const layout = node('DIV', ['stat-grid'], 'One Two Three Four');
+    const badges = ['One', 'Two', 'Three', 'Four']
+      .map(word => node('SPAN', ['badge'], word, { style: 'display:inline-block' }));
+    children(layout, badges);
+    assert.equal(isSplitTextRoot(layout as unknown as HTMLElement), false);
+  });
   it('detects an H3 with one generated GSAP line and nested words', () => {
     const heading = node('H3', ['heading-style-h3'], 'A better future');
     const line = node('DIV', ['gsap_split_line'], 'A better future');
