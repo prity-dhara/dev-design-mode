@@ -115,6 +115,19 @@ describe('animated split text selection', () => {
     assert.equal(splitTextRoot(secondWord as unknown as HTMLElement), paragraph);
     assert.equal(splitTextValue(paragraph as unknown as HTMLElement), 'GalentAI builds a context graph');
   });
+  it('treats stock .word spans in a Webflow text-size div as one source block', () => {
+    const paragraph = node('DIV', ['text-size-regular'], 'Hello from GalentAI');
+    const words = ['Hello', 'from', 'GalentAI'].map(text => node('SPAN', ['word'], text));
+    children(paragraph, words);
+    assert.equal(isSplitTextRoot(paragraph as unknown as HTMLElement), true);
+    assert.equal(splitTextRoot(words[1] as unknown as HTMLElement), paragraph);
+  });
+  it('does not merge ordinary div containers holding three word-like badges', () => {
+    const layout = node('DIV', ['badge-grid'], 'One Two Three');
+    const badges = ['One', 'Two', 'Three'].map(text => node('SPAN', ['word'], text));
+    children(layout, badges);
+    assert.equal(isSplitTextRoot(layout as unknown as HTMLElement), false);
+  });
   it('detects an H3 with one generated GSAP line and nested words', () => {
     const heading = node('H3', ['heading-style-h3'], 'A better future');
     const line = node('DIV', ['gsap_split_line'], 'A better future');
