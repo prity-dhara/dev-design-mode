@@ -7338,7 +7338,10 @@ function renderDesignTab(): string {
   // formatting tags enter the editor; page-owned nodes become inert
   // placeholders and only explicitly safe attributes survive.
   const rawInner = (displayInfo as any).innerHTML;
-  const richHtml = rawInner ? sanitizeRichTextHtml(rawInner) : escapeAttr(textVal);
+  const splitAnimatedText = !!(displayInfo as any).splitText;
+  // SplitText wrappers are animation output, not authored rich-text markup.
+  // Show the original full sentence as one editable value.
+  const richHtml = splitAnimatedText ? escapeAttr(textVal) : rawInner ? sanitizeRichTextHtml(rawInner) : escapeAttr(textVal);
   const richLinks: Array<{ index: number | 'host'; label: string; href: string }> = tag === 'a'
     ? [{ index: 'host', label: getRichTextLabel(richHtml) || 'Link', href: (displayInfo as any).attributes?.href || '' }]
     : rawInner ? getRichTextLinks(richHtml) : [];
@@ -7371,9 +7374,9 @@ function renderDesignTab(): string {
   const textField = showTextEdit
     ? '<div style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px;">' +
       '<label style="font-size:9px;color:var(--dm-text-muted);text-transform:uppercase;letter-spacing:0.4px;">Text Content</label>' +
-      richToolbar +
+      (splitAnimatedText ? '' : richToolbar) +
       '<div data-dm-richtext data-dm-element-id="' + escapeAttr(displayInfo.id || '') + '" contenteditable="true" class="dm-input" style="width:100%;min-height:88px;font-family:inherit;font-size:13px;line-height:1.5;padding:8px;box-sizing:border-box;outline:none;overflow-y:auto;max-height:280px;" spellcheck="false">' + richHtml + '</div>' +
-      richLinkSources +
+      (splitAnimatedText ? '<span style="font-size:10px;color:var(--dm-text-muted);">Split animation detected · edit as one text element. Live animation resets on page reload.</span>' : richLinkSources) +
       textWarning +
       '</div>'
     : '';
