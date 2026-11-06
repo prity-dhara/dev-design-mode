@@ -3,6 +3,7 @@
 // ============================================================
 
 import { getOrAssignId } from './helpers';
+import { isGeneratedSplitWrapper } from './split-text';
 import { getComponentHierarchy } from './source-detection';
 
 export interface DomNode {
@@ -36,6 +37,9 @@ export function buildDomTree(root: HTMLElement = document.body): DomNode[] {
 
   function visit(node: HTMLElement, depth: number, parentId: string | null) {
     if (SKIP_TAGS.has(node.tagName)) return;
+    // GSAP generates these temporary wrappers at runtime; they are not
+    // Webflow-authored layers and must not be editable as separate elements.
+    if (isGeneratedSplitWrapper(node)) return;
     if (DM_IDS.has(node.id)) return;
     if (node.id?.startsWith('dm-')) return;
     if (node.classList?.contains('dm-comment-pin')) return;
