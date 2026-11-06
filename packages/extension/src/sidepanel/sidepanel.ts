@@ -7376,7 +7376,10 @@ function renderDesignTab(): string {
       '<label style="font-size:9px;color:var(--dm-text-muted);text-transform:uppercase;letter-spacing:0.4px;">Text Content</label>' +
       (splitAnimatedText ? '' : richToolbar) +
       '<div data-dm-richtext data-dm-element-id="' + escapeAttr(displayInfo.id || '') + '" contenteditable="true" class="dm-input" style="width:100%;min-height:88px;font-family:inherit;font-size:13px;line-height:1.5;padding:8px;box-sizing:border-box;outline:none;overflow-y:auto;max-height:280px;" spellcheck="false">' + richHtml + '</div>' +
-      (splitAnimatedText ? '<span style="font-size:10px;color:var(--dm-text-muted);">Split animation detected · edit as one text element. Live animation resets on page reload.</span>' : richLinkSources) +
+      (splitAnimatedText
+        ? '<span style="font-size:10px;color:var(--dm-text-muted);">GSAP SplitText · source text is editable as one element. Live animation changes only if the page exposes its SplitText instance and rebuild callback; otherwise the change is exported for implementation.</span>' +
+          '<div style="font-size:10px;overflow-wrap:anywhere;color:var(--dm-text-muted);margin-top:3px;">Source: ' + escapeAttr((displayInfo as any).sourceHint || '') + '</div>'
+        : richLinkSources) +
       textWarning +
       '</div>'
     : '';
