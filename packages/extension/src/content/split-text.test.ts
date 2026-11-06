@@ -212,3 +212,42 @@ test('paragraph lookup does not swallow interactive links or unrelated layout co
   const leaf: any = { tagName: 'SPAN', parentElement: layout, closest: () => null };
   assert.equal(api.getParagraphTextHost(leaf), null);
 });
+
+test('paragraph plus badge row is not treated as one GSAP text host', () => {
+  const api = load();
+  const paragraph: any = {
+    tagName: 'P', parentElement: null, textContent: 'GalentAI reads your systems',
+    querySelectorAll: () => [], querySelector: () => null,
+    getAttribute: () => null, attributes: [],
+  };
+  const badge: any = {
+    tagName: 'DIV', parentElement: null, className: 'badges',
+    textContent: 'KNOWLEDGE GRAPH GOVERNANCE',
+    getAttribute: () => null, attributes: [],
+    querySelector: () => null, querySelectorAll: () => [],
+  };
+  const words = ['KNOWLEDGE', 'GRAPH', 'GOVERNANCE', 'TRACEABILITY', 'ZERO'];
+  const spans = words.map(word => ({
+    tagName: 'SPAN', parentElement: badge, textContent: word,
+    getAttribute: () => null, attributes: [], querySelector: () => null, querySelectorAll: () => [],
+  }));
+  const parent: any = {
+    tagName: 'DIV', textContent: paragraph.textContent + ' ' + words.join(' '),
+    className: 'feature-content', parentElement: null,
+    querySelectorAll: () => [paragraph, badge, ...spans],
+    querySelector: (selector: string) => selector.includes('div:not(') ? badge :
+      selector.includes('p') ? paragraph : null,
+    getAttribute: () => null, attributes: [],
+  };
+  paragraph.parentElement = parent;
+  badge.parentElement = parent;
+  assert.equal(api.isSplitTextHost(parent), false);
+  assert.equal(api.getSplitTextHost(paragraph), null);
+});
+
+test('known gsap_split_line-mask div remains recognized when no unrelated nested div exists', () => {
+  const api = load();
+  const host = heading(['gsap_split_line-mask', 'gsap_split_line',
+    'gsap_split_line-mask', 'gsap_split_line'], 'DIV');
+  assert.equal(api.isSplitTextHost(host), true);
+});
