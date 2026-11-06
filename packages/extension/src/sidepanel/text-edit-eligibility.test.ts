@@ -24,3 +24,19 @@ test('structural layout divs are not exposed as text editors', () => {
   assert.equal(isEditableTextOnlyDiv('<button>Buy now</button>', 'Buy now'), false);
   assert.equal(isEditableTextOnlyDiv('<span></span>', ''), false);
 });
+
+
+test('GSAP line wrappers inside a text div still show Typography text editor', () => {
+  const html = [
+    '<div class="gsap_split_line-mask"><div class="gsap_split_line">First line</div></div>',
+    '<div class="gsap_split_line-mask"><div class="gsap_split_line">Second line</div></div>',
+  ].join('');
+  assert.equal(isEditableTextOnlyDiv(html, 'First lineSecond line'), true);
+  assert.equal(isEditableTextOnlyDiv('<div class="gsap_split_word">one</div><span class="char">two</span>', 'onetwo'), true);
+});
+
+test('a paragraph with cards or badge divs is not an editable text-only div', () => {
+  assert.equal(isEditableTextOnlyDiv('<div class="badges"><span>GOVERNANCE</span></div>', 'GOVERNANCE'), false);
+  assert.equal(isEditableTextOnlyDiv('<div class="card"><p>Card copy</p></div>', 'Card copy'), false);
+  assert.equal(isEditableTextOnlyDiv('<div class="w-layout-grid">Grid text</div>', 'Grid text'), false);
+});
