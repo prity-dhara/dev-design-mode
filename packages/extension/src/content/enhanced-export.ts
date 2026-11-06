@@ -323,7 +323,18 @@ function locationLabel(location: { parentSelector: string; index: number; parent
 // Copy Prompt is intentionally separate from the structured MCP change report:
 // short human-readable instructions, with no ephemeral E-number references.
 export function exportMarkdown(pageComments: CommentData[] = []): string {
-  const styles = getStyleChanges().filter(c => c.status !== 'resolved' && c.oldValue !== c.newValue);
+  const styleHistory = getStyleChanges().filter(c => c.status !== 'resolved' && c.oldValue !== c.newValue);
+  // Export final intended CSS, not a log of intermediate slider/picker edits.
+  // The earliest original value and latest edited value determine whether a
+  // property still has an effective change.
+  const finalStyles = new Map<string, (typeof styleHistory)[number] & { firstOldValue: string }>();
+  for (const change of [...styleHistory].sort((a, b) => a.timestamp - b.timestamp)) {
+    const key = [change.elementId, change.property, change.state || '',
+      change.breakpoint || 'desktop', change.viewportWidth || ''].join('|');
+    const firstOldValue = finalStyles.get(key)?.firstOldValue ?? change.oldValue;
+    finalStyles.set(key, { ...change, firstOldValue });
+  }
+  const styles = [...finalStyles.values()].filter(c => normalize(c.firstOldValue) !== normalize(c.newValue));
   const texts = getTextChanges().filter(c => c.status !== 'resolved' && c.oldText !== c.newText);
   const dom = getDomChanges().filter(c => c.status !== 'resolved');
   const tokens = getTokenIndex().tokens;
@@ -374,7 +385,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
       const source = compactDuplicateSource(change.sourceSelector || change.selector, change.elementId);
       description = 'Duplicate ' + source +
         (final ? ' → ' + locationLabel(final, change.elementId, true) : '') +
-        '. Preserve styles and classes; edit the new copy only.';
+        '. Keep original classes/styles; edit new copy only.';
     } else if (change.action === 'insert') {
       // Include markup only when it contains useful structure or authored
       // attributes. Empty divs/sections remain one short instruction.
@@ -411,9 +422,12 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     const changes = group.map(change =>
       camelToKebab(change.property) + ': ' + tokenize(change.newValue, lookup, used)).join('; ');
     const state = first.state ? ' (' + (MOTION_STATE_LABEL[first.state] || first.state) + ')' : '';
+    const scopedCopy = created.has(first.elementId) || createdContext(first.elementId, first.selector) !== '';
     entries.push({ time: Math.min(...group.map(c => c.timestamp)), order: 1,
       text: 'Style ' + elementLabel(first.elementId, first.selector) + state + ' → ' +
-        changes + '.' + breakpointTag(group) });
+        changes + (scopedCopy
+          ? '. Scope to this copy (unique class/selector); never edit the shared class.'
+          : '.') + breakpointTag(group) });
   }
 
   for (const change of texts) {
