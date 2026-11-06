@@ -2,7 +2,7 @@
 // A single ".line" or ".word" class is not sufficient evidence of splitting.
 const wordClass = /^(?:word|words|gsap[_-]split[_-]word)$/i;
 const lineClass = /^(?:line|lines|gsap[_-]split[_-]line)$/i;
-const partClass = /^(?:line|lines|word|words|char|chars|gsap[_-]split[_-](?:line|word|char)(?:[_-]mask)?)$/i;
+const partClass = /^(?:line|lines|word|words|char|chars|gsap[_-]split[_-](?:line|word|char|text)(?:[_-]mask|[_-]wrapper)?)$/i;
 const rememberedRoots = new WeakSet<HTMLElement>();
 
 function splitPart(el: HTMLElement): boolean {
@@ -32,8 +32,10 @@ export function isSplitTextRoot(el: HTMLElement): boolean {
   const words = parts.filter(p => matchesClass(p, wordClass) || p.hasAttribute('data-split-word'));
   const lines = parts.filter(p => matchesClass(p, lineClass) || p.hasAttribute('data-split-line'));
   const gsap = parts.filter(p => Array.from(p.classList).some(c => /^gsap[_-]split[_-]/i.test(c)));
+  // A single generated line can contain dozens of word/char wrappers.
+  // Requiring two *direct* children misses many H3 Webflow headings.
   const recognized = words.length >= 2 || lines.length >= 2 ||
-    (gsap.length >= 2 && groups.length >= 2) ||
+    (gsap.length >= 2) ||
     (!!el.getAttribute('aria-label') && parts.some(p => p.getAttribute('aria-hidden') === 'true'));
   if (recognized) rememberedRoots.add(el);
   return recognized;
@@ -77,18 +79,19 @@ const splitSnapshots = new Map<HTMLElement, SplitSnapshot>();
 
 export function flattenAnimatedText(root: ParentNode = document): number {
   let count = 0;
-  const candidates = Array.from(root.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6,p,span,a,blockquote,label,div'));
+  // Work from inner text hosts outward. Never rewrite an entire card or
+  // section simply because its descendants contain a split heading.
+  const candidates = Array.from(root.querySelectorAll<HTMLElement>(
+    'h1,h2,h3,h4,h5,h6,p,span,a,blockquote,label,div'
+  )).reverse();
   for (const el of candidates) {
-    // Skip nested split wrappers; only the original editable host is flattened.
     if (!el.isConnected || splitSnapshots.has(el) || !isSplitTextRoot(el)) continue;
-    if (splitTextRoot(el) && splitTextRoot(el) !== el) continue;
     const text = splitTextValue(el);
     if (!text.trim() || !el.children.length) continue;
     const nodes = Array.from(el.childNodes);
     const previewNode = document.createTextNode(text);
     const ariaLabel = el.getAttribute('aria-label');
     el.replaceChildren(previewNode);
-    // The accessible original label would otherwise remain stale after editing.
     if (ariaLabel !== null) el.removeAttribute('aria-label');
     splitSnapshots.set(el, { nodes, originalText: text, previewNode, ariaLabel });
     count++;
@@ -96,15 +99,45 @@ export function flattenAnimatedText(root: ParentNode = document): number {
   return count;
 }
 
+let observer: MutationObserver | null = null;
+let scheduled: ReturnType<typeof setTimeout> | null = null;
+
+export function startSplitTextCleanup(): void {
+  stopSplitTextCleanup(false);
+  flattenAnimatedText();
+  // Some Webflow/GSAP scripts initialise after the extension opens or
+  // re-split headings during resize. Clean up those fresh wrappers too.
+  observer = new MutationObserver(records => {
+    if (!records.some(record => record.addedNodes.length > 0)) return;
+    if (scheduled !== null) return;
+    scheduled = setTimeout(() => {
+      scheduled = null;
+      flattenAnimatedText();
+    }, 40);
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+}
+
+export function stopSplitTextCleanup(restore = true): void {
+  observer?.disconnect();
+  observer = null;
+  if (scheduled !== null) clearTimeout(scheduled);
+  scheduled = null;
+  if (restore) restoreAnimatedText();
+}
+
 export function restoreAnimatedText(): void {
+  // A live preview is intentionally temporary, not a source-code edit.
   for (const [el, snapshot] of splitSnapshots) {
     if (!el.isConnected) continue;
-    // Only restore an untouched preview. Never undo a text edit made by user.
+    // If the user edited the heading, leave the changed text in the preview.
+    // It is recorded as a single text change for the AI/code implementation.
     if (el.childNodes.length !== 1 ||
         el.firstChild !== snapshot.previewNode ||
         snapshot.previewNode.textContent !== snapshot.originalText) continue;
     el.replaceChildren(...snapshot.nodes);
     if (snapshot.ariaLabel !== null) el.setAttribute('aria-label', snapshot.ariaLabel);
+    rememberedRoots.delete(el);
   }
   splitSnapshots.clear();
 }
