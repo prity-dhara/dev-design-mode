@@ -181,3 +181,34 @@ test('editing line-split text keeps words intact across GSAP text nodes', () => 
     return !fragment || fragment.endsWith(' ') || node === element.nodes.at(-1);
   }));
 });
+
+test('clicking an inline span inside a regular paragraph selects the full paragraph', () => {
+  const api = load();
+  const para: any = { tagName: 'P', parentElement: null, querySelector: () => null };
+  const inline: any = {
+    tagName: 'SPAN', parentElement: para, closest: () => null,
+  };
+  assert.equal(api.getParagraphTextHost(inline), para);
+});
+
+test('Webflow text-size-regular div selects the full text block', () => {
+  const api = load();
+  const block: any = {
+    tagName: 'DIV', className: 'text-size-regular',
+    parentElement: null, querySelector: () => null,
+  };
+  const line: any = {
+    tagName: 'SPAN', parentElement: block, closest: () => null,
+  };
+  assert.equal(api.getParagraphTextHost(line), block);
+});
+
+test('paragraph lookup does not swallow interactive links or unrelated layout containers', () => {
+  const api = load();
+  const para: any = { tagName: 'P', parentElement: null, querySelector: () => null };
+  const link: any = { tagName: 'A', parentElement: para, closest: () => null };
+  assert.equal(api.getParagraphTextHost(link), null);
+  const layout: any = { tagName: 'DIV', className: 'card-grid', parentElement: null, querySelector: () => null };
+  const leaf: any = { tagName: 'SPAN', parentElement: layout, closest: () => null };
+  assert.equal(api.getParagraphTextHost(leaf), null);
+});
