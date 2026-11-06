@@ -18,6 +18,26 @@ continues untouched.
 
 On Webflow the page URL + CSS selector is a locator, not a claimed file path.
 
+## One editable container, including styling
+
+Selecting a generated `.char`, `.word`, or `.line` resolves to the
+original Webflow heading or paragraph. A Webflow `div.text-size-regular`
+that hosts SplitText also gets a text editor.
+
+Styles such as font size, weight, color, line height, and letter spacing
+are recorded **once** on that original element. Design Mode's temporary
+stylesheet also mirrors those typography values to its generated GSAP
+wrappers, because some animations put explicit typography on each span.
+
+Layout styles (width, padding, margins, alignment of the host) remain on
+the HTML host. Animation styles (transform, opacity, position, overflow,
+clip) are **never** pushed into the generated wrappers. That preserves
+the timeline's motion configuration.
+
+If the original site does not expose an editable SplitText instance,
+the text content change is exported as a source edit and does not
+alter the live animated text. The editor explicitly reports this state.
+
 ## Optional: allow safe live rebuilding
 
 If you own the Webflow custom code, register the original text element and
