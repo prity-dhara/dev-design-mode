@@ -11,7 +11,7 @@ import { showAxisGuides, hideAxisGuides, showDistance, hideDistance, showPairwis
 import { baseCursor, restoreBaseCursor } from './custom-cursor';
 import { measureChildGap } from './child-gap';
 import type { ElementInfo as SharedElementInfo } from '@shared/types';
-import { splitTextRoot, isSplitTextRoot, splitTextValue } from './split-text';
+import { splitTextRoot, isSplitTextRoot, splitTextValue, splitTextSourceHint } from './split-text';
 
 export type IconInfo = { library: string; name: string };
 
@@ -24,7 +24,7 @@ export type ElementInfo = Pick<SharedElementInfo, 'rect' | 'childGap'> & {
   // camelCase compound-shadow prop → the vars it's composed from. Drives the
   // multi-token shadow chip (a single `styleTokens` entry can't hold a stack).
   shadowVars: Record<string, ShadowVarInfo>;
-  textContent: string | null; innerHTML: string; splitText?: boolean;
+  textContent: string | null; innerHTML: string; splitText?: boolean; sourceHint?: string;
   attributes: Record<string, string>; selector: string;
   iconInfo?: IconInfo;
   parentDisplay?: string;
@@ -116,6 +116,7 @@ export function buildElementInfo(el: HTMLElement, skipTokens = false): ElementIn
     rect: getElementRect(el),
     textContent: (isSplitTextRoot(el) ? splitTextValue(el) : el.textContent || '').slice(0, 500) || null,
     splitText: isSplitTextRoot(el),
+    sourceHint: isSplitTextRoot(el) ? splitTextSourceHint(el, generateSelector(el)) : undefined,
     innerHTML,
     attributes: attrs, selector: generateSelector(el),
     iconInfo: detectIconInfo(el),
