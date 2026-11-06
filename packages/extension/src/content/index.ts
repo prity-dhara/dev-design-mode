@@ -27,6 +27,7 @@ import type { ElementInfo } from './inspector';
 import { initCustomCursor, applyBaseCursor, clearBaseCursor } from './custom-cursor';
 import { getStyleChanges, getTextChanges, getDomChanges, clearAllChanges, applyStyleChange, applyWithCompanions, computeCompanions, applyTextChange, applyHtmlChange, applyAttributeChange, removeStyleChange, removeDomChange, removeTextChange, recordDomChange, connectToServer, disconnectFromServer, isConnected, isAgentConnected, getChangeReport, reorderChange, getAllChanges, replaySession, setOverridesEnabled, applyChangesPayload, setUnhandledMessageHandler, sendRelayResponse, setChangesStatus, syncCommentChange, syncCommentDeleted, stageAgentHandoff, getFeedbackSessionView, isLiveFeedbackSupported, stopFeedbackSessionFromUi } from './change-tracker';
 import { isSafeRichTextHref } from '../rich-text-preservation';
+import { isSplitTextRoot, splitTextValue } from './split-text';
 import { copyElement, pasteElement, duplicateElement, moveElement } from './html-editor';
 import { isTypingTarget } from './shortcut-binding';
 import { deleteElements, type DeleteCommand } from './delete-command';
@@ -1640,7 +1641,7 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       if (sid && msg.text !== undefined) {
         const el = getElementById(sid);
         if (el) {
-          const oldText = el.textContent || '';
+          const oldText = isSplitTextRoot(el) ? splitTextValue(el) : (el.textContent || '');
           if (oldText !== msg.text) {
             applyTextChange(sid, msg.text);
             undoStack.push({ kind: 'text', elementId: sid, oldText, newText: msg.text });
@@ -1661,12 +1662,26 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
       if (sid && typeof msg.html === 'string') {
         const el = getElementById(sid);
         if (el) {
-          const oldHtml = el.innerHTML || '';
-          applyHtmlChange(sid, msg.html, undefined, true);
-          const newHtml = el.innerHTML || '';
-          if (oldHtml !== newHtml) {
-            undoStack.push({ kind: 'text', elementId: sid, oldText: oldHtml, newText: newHtml, isHtml: true });
-            redoStack.length = 0;
+          if (isSplitTextRoot(el)) {
+            // Never export GSAP's runtime-generated wrapper HTML as editable content.
+            // Preserve a single source-text change for the original heading.
+            const draft = document.createElement('div');
+            draft.innerHTML = msg.html;
+            const nextText = draft.textContent || '';
+            const oldText = splitTextValue(el);
+            if (nextText !== oldText) {
+              applyTextChange(sid, nextText);
+              undoStack.push({ kind: 'text', elementId: sid, oldText, newText: nextText });
+              redoStack.length = 0;
+            }
+          } else {
+            const oldHtml = el.innerHTML || '';
+            applyHtmlChange(sid, msg.html, undefined, true);
+            const newHtml = el.innerHTML || '';
+            if (oldHtml !== newHtml) {
+              undoStack.push({ kind: 'text', elementId: sid, oldText: oldHtml, newText: newHtml, isHtml: true });
+              redoStack.length = 0;
+            }
           }
           const info = buildElementInfo(el);
           onElementSelected(info);
