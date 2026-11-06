@@ -29,7 +29,9 @@ const style = z.object({ ...base,
   groupKind: z.enum(['preset', 'multi-select', 'visibility', 'consolidate']).optional(),
 });
 const text = z.object({ ...base, oldText: str, newText: str,
-  isHtml: z.boolean().optional(), attributeName: z.literal('href').optional(),
+  isHtml: z.boolean().optional(), isSplitText: z.boolean().optional(),
+  splitOriginalSegments: z.array(z.string().max(100_000)).max(1000).optional(),
+  attributeName: z.literal('href').optional(),
 });
 const dom = z.object({ ...base,
   action: z.enum(['delete', 'duplicate', 'move', 'insert']),
