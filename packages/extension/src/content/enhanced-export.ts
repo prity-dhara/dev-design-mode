@@ -233,264 +233,213 @@ function tokenize(value: string, lookup: Map<string, string>, used: Set<string>)
 }
 
 // ── Markdown — short, chronological, agent-friendly ──
+// A short selector is useful only if it actually points to the intended node.
+// Prefer a unique ID, then a unique class, then a named ancestor + class and
+// 1-based position. Retain the recorded path if we cannot verify the match.
+function compactSelector(elementId: string | undefined, recorded: string, explicit?: HTMLElement | null): string {
+  const el = explicit ?? (elementId ? getElementById(elementId) : null);
+  if (!el) return recorded;
+  const matches = (selector: string, node: Element): boolean => {
+    try { return document.querySelectorAll(selector).length === 1 && document.querySelector(selector) === node; }
+    catch { return false; }
+  };
+  if (el.id) {
+    const byId = '#' + CSS.escape(el.id);
+    if (matches(byId, el)) return byId;
+  }
+  const classes = typeof el.className === 'string'
+    ? el.className.trim().split(/\s+/).filter(v => v && !v.startsWith('dm-'))
+    : [];
+  for (const cls of classes) {
+    const byClass = '.' + CSS.escape(cls);
+    if (matches(byClass, el)) return byClass;
+  }
+  for (let parent = el.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+    const parentClasses = typeof parent.className === 'string'
+      ? parent.className.trim().split(/\s+/).filter(v => v && !v.startsWith('dm-'))
+      : [];
+    const anchors = [...(parent.id ? ['#' + CSS.escape(parent.id)] : []),
+      ...parentClasses.map(v => '.' + CSS.escape(v))];
+    for (const anchor of anchors) {
+      for (const cls of classes) {
+        const candidate = anchor + ' .' + CSS.escape(cls);
+        if (matches(candidate, el)) return candidate;
+      }
+      const tagCandidate = anchor + ' ' + el.tagName.toLowerCase();
+      if (matches(tagCandidate, el)) return tagCandidate;
+    }
+  }
+  // Even a nonunique class is useful when accompanied by its exact position.
+  if (el.parentElement && classes.length > 0) {
+    const parent = el.parentElement;
+    const siblings = Array.from(parent.children).filter(child =>
+      child.classList?.contains(classes[0]));
+    const index = siblings.indexOf(el) + 1;
+    const parentSelector = compactSelectorForParent(parent);
+    if (index > 0 && parentSelector) {
+      const childPosition = Array.from(parent.children).indexOf(el) + 1;
+      return parentSelector + ' > .' + CSS.escape(classes[0]) + ':nth-child(' + childPosition + ')';
+    }
+  }
+  return recorded || generateSelector(el);
+}
+
+// Only abbreviate a recorded duplicate source when the original still
+// resolves uniquely and is not the newly created clone.
+function compactDuplicateSource(recorded: string, cloneId: string): string {
+  try {
+    const nodes = document.querySelectorAll(recorded);
+    if (nodes.length !== 1 || nodes[0] === getElementById(cloneId)) return recorded;
+    return compactSelector(undefined, recorded, nodes[0] as HTMLElement);
+  } catch { return recorded; }
+}
+
+function compactSelectorForParent(parent: HTMLElement): string {
+  if (parent.id) return '#' + CSS.escape(parent.id);
+  const classes = typeof parent.className === 'string'
+    ? parent.className.trim().split(/\s+/).filter(v => v && !v.startsWith('dm-'))
+    : [];
+  for (const cls of classes) {
+    const candidate = '.' + CSS.escape(cls);
+    try {
+      if (document.querySelectorAll(candidate).length === 1) return candidate;
+    } catch { /* fallback to DOM selector */ }
+  }
+  return generateSelector(parent);
+}
+
+function locationLabel(location: { parentSelector: string; index: number; parentId?: string },
+  elementId?: string, current = false): string {
+  const el = elementId ? getElementById(elementId) : null;
+  if (current && el?.parentElement) {
+    return compactSelectorForParent(el.parentElement) + ', child ' +
+      (Array.from(el.parentElement.children).indexOf(el) + 1);
+  }
+  const parent = location.parentId ? getElementById(location.parentId) : null;
+  return (parent ? compactSelectorForParent(parent) : location.parentSelector) +
+    ', child ' + (location.index + 1);
+}
+
+// Copy Prompt is intentionally separate from the structured MCP change report:
+// short human-readable instructions, with no ephemeral E-number references.
 export function exportMarkdown(pageComments: CommentData[] = []): string {
-  // A prompt represents final unresolved intent, not the full edit history.
-  const styleChanges = getStyleChanges().filter(c => c.status !== 'resolved' && c.oldValue !== c.newValue);
-  const textChanges = getTextChanges().filter(c => c.status !== 'resolved' && c.oldText !== c.newText);
-  const domChanges = getDomChanges().filter(c => c.status !== 'resolved');
-
+  const styles = getStyleChanges().filter(c => c.status !== 'resolved' && c.oldValue !== c.newValue);
+  const texts = getTextChanges().filter(c => c.status !== 'resolved' && c.oldText !== c.newText);
+  const dom = getDomChanges().filter(c => c.status !== 'resolved');
   const tokens = getTokenIndex().tokens;
-  const tokenLookup = buildTokenLookup(tokens);
-  const tokensUsed = new Set<string>();
-
-  const lines: string[] = [];
-  const title = (document.title || '').trim() || 'untitled';
-  lines.push(`# Visual changes — ${title}`);
-  lines.push(`<${window.location.href}>`);
-
-  // Tokens-changed context — only included when the user has actually
-  // modified at least one :root CSS variable in this session. Avoids
-  // bloating every export with the full design-system catalog.
-  const tokensChanged = buildTokenChangesSection();
-  if (tokensChanged) {
-    lines.push('');
-    lines.push(tokensChanged);
-  }
-
-  // Build context once per element for stable short labels + source file hints.
-  const idsToContext = new Map<string, ElementContext>();
-  const ensureCtx = (elementId: string, selector: string) => {
-    if (!idsToContext.has(elementId)) idsToContext.set(elementId, gatherElementContext(elementId, selector));
-    return idsToContext.get(elementId)!;
-  };
-
-  type Entry = { t: number; line: string };
-  const entries: Entry[] = [];
-
-  // Style changes — group consecutive edits to the same element on one line.
-  // e.g. `- .btn-primary: color #000 → var(--accent); padding 8px → 12px`
-  // Groups split at the element's move timestamp so the chronological list
-  // preserves "edited → moved → edited again" for the agent.
-  // A clone that was subsequently moved is ONE final create operation.
-  // Keep the new node's final destination and its style/text edits, but do
-  // not ask the coding agent to first create it elsewhere then move it.
-  const createdIds = new Set(
-    domChanges.filter(d => d.action === 'duplicate' || d.action === 'insert').map(d => d.elementId),
-  );
-  const finalMoves = new Map<string, (typeof domChanges)[number]>();
-  for (const change of domChanges) {
-    if (change.action === 'move' && change.destination) finalMoves.set(change.elementId, change);
-  }
-  const moveTimestamps = new Map<string, number>();
-  for (const d of domChanges) {
-    if (d.action === 'move' && !createdIds.has(d.elementId)) moveTimestamps.set(d.elementId, d.timestamp);
-  }
-  const styleByElement = new Map<string, typeof styleChanges>();
-  for (const c of styleChanges) {
-    const moveT = moveTimestamps.get(c.elementId);
-    const key = moveT !== undefined && c.timestamp > moveT ? c.elementId + ' post-move' : c.elementId;
-    if (!styleByElement.has(key)) styleByElement.set(key, []);
-    styleByElement.get(key)!.push(c);
-  }
-  // Each element receives one short reference. Include its exact selector
-  // once in the target index rather than on every modification line.
-  const targets = new Map<string, { ref: string; ctx: ElementContext }>();
-  const label = (elementId: string, ctx: ElementContext): string => {
-    let entry = targets.get(elementId);
-    if (!entry) {
-      entry = { ref: 'E' + (targets.size + 1), ctx };
-      targets.set(elementId, entry);
+  const lookup = buildTokenLookup(tokens);
+  const used = new Set<string>();
+  const created = new Map<string, (typeof dom)[number]>(dom.filter(c => c.action === 'duplicate' || c.action === 'insert').map(c => [c.elementId, c] as const));
+  const finalMoves = new Map<string, (typeof dom)[number]>(dom.filter(c => c.action === 'move' && c.destination).map(c => [c.elementId, c] as const));
+  const createdContext = (elementId: string, recordedSelector: string): string => {
+    const el = getElementById(elementId);
+    if (created.has(elementId)) {
+      const d = created.get(elementId)!;
+      const loc = finalMoves.get(elementId)?.destination ?? d.destination;
+      return 'new ' + (d.tagName || 'element') + (loc ? ' at ' + locationLabel(loc, elementId, true) : '');
     }
-    return entry.ref;
-  };
-
-  // A nested text/style edit may belong to a newly duplicated parent,
-  // not to the pre-existing element with a similar CSS selector.
-  // Use actual live DOM ancestry, never infer this from nth-of-type paths.
-  const createdParents = domChanges.filter(c =>
-    c.action === 'duplicate' || c.action === 'insert',
-  );
-  const nestedInCreated = (elementId: string): string => {
-    const child = getElementById(elementId);
-    if (!child) return '';
-    let closest: { id: string; depth: number } | null = null;
-    for (const parentChange of createdParents) {
-      if (parentChange.elementId === elementId) continue;
-      const parent = getElementById(parentChange.elementId);
-      if (!parent || !parent.contains(child)) continue;
-      let depth = 0;
-      for (let current = child.parentElement; current && current !== parent; current = current.parentElement) depth++;
-      if (!closest || depth < closest.depth) closest = { id: parentChange.elementId, depth };
-    }
-    if (!closest) return '';
-    const parentChange = createdParents.find(c => c.elementId === closest!.id)!;
-    const parentRef = label(parentChange.elementId, ensureCtx(parentChange.elementId, parentChange.selector));
-    return ' (inside newly created ' + parentRef + ')';
-  };
-
-  for (const list of styleByElement.values()) {
-    const ctx = ensureCtx(list[0].elementId, list[0].selector);
-    const decls = list
-      .map(c => {
-        const oldShort = shortenValue(tokenize(c.oldValue, tokenLookup, tokensUsed));
-        const newShort = shortenValue(tokenize(c.newValue, tokenLookup, tokensUsed));
-        // Motion state-variants carry a trigger tag so the agent knows the
-        // change is conditional (`on hover`) rather than an unconditional edit.
-        const trigger = c.state ? ` (${MOTION_STATE_LABEL[c.state] || c.state})` : '';
-        return `${camelToKebab(c.property)} ${oldShort} → ${newShort}${trigger}`;
-      })
-      .join('; ');
-    const earliest = Math.min(...list.map(c => c.timestamp));
-    entries.push({ t: earliest, line: `- ${label(list[0].elementId, ctx)}${nestedInCreated(list[0].elementId)}: ${decls}${breakpointTag(list)}` });
-  }
-
-  // Text changes ship as a compact inline word-diff (`~~removed~~ **added**`,
-  // unchanged runs elided) instead of the whole before+after paragraph, so the
-  // agent gets only the corrections. A total rewrite (no shared words) or an
-  // oversized edit falls back to the new text alone.
-  for (const c of textChanges) {
-    const ctx = ensureCtx(c.elementId, c.selector);
-    if (c.attributeName) {
-      entries.push({
-        t: c.timestamp,
-        line: `- ${label(c.elementId, ctx)}${nestedInCreated(c.elementId)} ${c.attributeName}: ${JSON.stringify(c.oldText)} → ${JSON.stringify(c.newText)}` + breakpointTag([c]),
-      });
-      continue;
-    }
-    const oldText = (c.oldText || '').trim();
-    const newText = (c.newText || '').trim();
-    const head = `${label(c.elementId, ctx)}${nestedInCreated(c.elementId)}`;
-    const wordCount = (s: string) => s.split(/\s+/).filter(Boolean).length;
-    const diff = wordCount(oldText) > 400 || wordCount(newText) > 400
-      ? null
-      : inlineTextDiff(oldText, newText);
-    entries.push({
-      t: c.timestamp,
-      line: (diff !== null ? `- ${head} text: ${diff}` : `- ${head} text → "${newText}"`) + breakpointTag([c]),
-    });
-  }
-
-  // DOM changes (delete/duplicate/insert/move). Moves surface BOTH ends:
-  // origin (stored at drag time, parent selector re-resolved live via its
-  // data-dm-id) and destination (the element's CURRENT position — stored
-  // destinations are positional and go stale after later reorders).
-  const describeStored = (loc: { parentSelector: string; index: number; parentId?: string }): string => {
-    const parent = loc.parentId ? getElementById(loc.parentId) : null;
-    return `${parent ? generateSelector(parent) : loc.parentSelector}[${loc.index}]`;
-  };
-  const describeCurrent = (el: HTMLElement | null, fallback: { parentSelector: string; index: number; parentId?: string }): string => {
-    if (el?.parentElement) {
-      return `${generateSelector(el.parentElement)}[${Array.from(el.parentElement.children).indexOf(el)}]`;
-    }
-    return describeStored(fallback);
-  };
-  for (const c of domChanges) {
-    // New elements are described once at their FINAL position, even if
-    // subsequently moved. The following style and text changes still
-    // reference the new element via its stable E-number.
-    if (c.action === 'move' && createdIds.has(c.elementId)) continue;
-    const ctx = ensureCtx(c.elementId, c.selector);
-    let line: string;
-    if (c.action === 'move' && c.destination) {
-      const dest = describeCurrent(getElementById(c.elementId), c.destination);
-      line = c.origin
-        ? `- ${label(c.elementId, ctx)}: Move from ${describeStored(c.origin)} to ${dest} (0-based child positions). Preserve its content and classes.`
-        : `- ${label(c.elementId, ctx)}: Move to ${dest} (0-based child position). Preserve its content and classes.`;
-    } else if ((c.action === 'duplicate' || c.action === 'insert') && c.destination) {
-      const destination = describeCurrent(getElementById(c.elementId), finalMoves.get(c.elementId)?.destination ?? c.destination);
-      // Newly created nodes keep their own E-reference, so subsequent
-      // text and appearance edits unambiguously apply to the new node.
-      const origin = c.action === 'duplicate'
-        ? (c.sourceSelector ? `Duplicate source (${c.sourceSelector}) into` : 'Duplicate element into')
-        : 'Insert element at';
-      line = `- ${label(c.elementId, ctx)}: ${origin} ${destination} (0-based child position). This is the new element; apply its following edits here.`;
-    } else if (c.action === 'delete' && c.origin) {
-      line = `- ${label(c.elementId, ctx)}: Delete from ${describeStored(c.origin)}.`;
-    } else {
-      const verb =
-        c.action === 'delete' ? 'Delete element' :
-        c.action === 'duplicate' ? 'Duplicate element' :
-        c.action === 'insert' ? 'Insert element' :
-        c.action === 'move' ? 'Move element' : c.action;
-      line = `- ${label(c.elementId, ctx)}: ${verb}`;
-    }
-    entries.push({ t: c.timestamp, line: line + breakpointTag([c]) });
-  }
-
-  // Reviewer comments — promoted to their own section below for visibility.
-  // Style/text/DOM changes go in the chronological list; comments live in
-  // their own block so an agent can spot reviewer intent quickly.
-
-  if (entries.length === 0 && pageComments.length === 0) {
-    lines.push('');
-    lines.push('(no changes recorded yet)');
-    return lines.join('\n');
-  }
-
-  if (entries.length > 0) {
-    lines.push('');
-    lines.push('## Element targets');
-    lines.push('Selectors describe the current browser DOM. Match each target in the project before editing; source hints are unverified.');
-    for (const entry of targets.values()) {
-      const { ref, ctx } = entry;
-      const path = ctx.selector || ctx.smartLabel;
-      const shortName = ctx.smartLabel !== path ? ctx.smartLabel + ' — ' : '';
-      lines.push('- `' + ref + '`: ' + shortName + '`' + path + '`');
-      if (ctx.sourceFile && ctx.framework === 'react') {
-        lines.push('  - React source hint (verify locally): `' +
-          ctx.sourceFile + (ctx.line ? ':' + ctx.line : '') + '`' +
-          (ctx.componentName ? ' · component ' + ctx.componentName : ''));
+    for (const [id, d] of created) {
+      const parent = getElementById(id);
+      if (el && parent && parent !== el && parent.contains(el)) {
+        const loc = finalMoves.get(id)?.destination ?? d.destination;
+        return compactSelector(elementId, recordedSelector) + ' inside new ' + d.tagName +
+          (loc ? ' at ' + locationLabel(loc, id, true) : '');
       }
     }
-    entries.sort((a, b) => a.t - b.t);
-    lines.push('');
-    lines.push('## Changes');
-    if (entries.some(e => /\[-.*?-\]|\{\+.*?\+\}/.test(e.line))) {
-      lines.push('> Text edits use git word-diff notation: `[-…-]` = removed, `{+…+}` = added, unmarked words are unchanged, and `…` marks unchanged text omitted for brevity. Apply the edit to the element — do not write the markers into the text.');
+    return '';
+  };
+  const elementLabel = (elementId: string, selector: string) =>
+    createdContext(elementId, selector) || compactSelector(elementId, selector);
+
+  // Use one shared target when possible, otherwise label each affected item.
+  const firstDom = dom.find(c => c.destination || c.origin);
+  const firstStyle = styles[0];
+  const firstText = texts[0];
+  const rootTarget = firstDom
+    ? locationLabel(finalMoves.get(firstDom.elementId)?.destination ?? firstDom.destination ?? firstDom.origin!, undefined).split(', child ')[0]
+    : firstStyle ? elementLabel(firstStyle.elementId, firstStyle.selector)
+    : firstText ? elementLabel(firstText.elementId, firstText.selector)
+    : '';
+  const lines: string[] = ['Page: ' + window.location.href];
+  if (rootTarget) lines.push('Target: ' + rootTarget);
+  lines.push('', 'Changes:');
+
+  type Entry = { time: number; order: number; text: string };
+  const entries: Entry[] = [];
+  for (const change of dom) {
+    if (change.action === 'move' && created.has(change.elementId)) continue;
+    const final = finalMoves.get(change.elementId)?.destination ?? change.destination;
+    let description = '';
+    if (change.action === 'duplicate') {
+      const source = compactDuplicateSource(change.sourceSelector || change.selector, change.elementId);
+      description = 'Duplicate ' + source +
+        (final ? ' → ' + locationLabel(final, change.elementId, true) : '') +
+        '. Preserve styles and classes; edit the new copy only.';
+    } else if (change.action === 'insert') {
+      // Include markup only when it contains useful structure or authored
+      // attributes. Empty divs/sections remain one short instruction.
+      const markup = (change.outerHTML || '')
+        .replace(/\sdata-dm-id="[^"]*"/g, '')
+        .replace(/\sdata-dm-[\w-]+="[^"]*"/g, '');
+      const meaningful = /\s(?:class|style|id|src|alt|href)=/.test(markup) ||
+        />\s*[^<\s]/.test(markup) || /<\w[^>]*>\s*<\w/.test(markup);
+      description = 'Add ' + change.tagName +
+        (final ? ' at ' + locationLabel(final, change.elementId, true) : '') +
+        (meaningful ? ': ' + markup : '.') ;
+    } else if (change.action === 'move') {
+      description = 'Move ' + elementLabel(change.elementId, change.selector) +
+        (change.origin ? ' from ' + locationLabel(change.origin) : '') +
+        (final ? ' to ' + locationLabel(final, change.elementId, true) : '') +
+        '. Preserve content and classes.';
+    } else if (change.action === 'delete') {
+      description = 'Delete ' + elementLabel(change.elementId, change.selector) +
+        (change.origin ? ' at ' + locationLabel(change.origin) : '') + '.';
     }
-    const hasBreakpoints = [...styleChanges, ...textChanges, ...domChanges]
-      .some(c => c.breakpoint && c.breakpoint !== 'desktop');
-    if (hasBreakpoints) {
-      lines.push('_A trailing `(breakpoint · width)` marks the responsive width the edit was made at — scope it to that breakpoint (e.g. a media query). Untagged changes are desktop._');
-    }
-    for (const e of entries) lines.push(e.line);
+    if (description) entries.push({ time: change.timestamp, order: 0, text: description + breakpointTag([change]) });
   }
 
-  // Comments section — only if any pinned notes exist. Inline a source
-  // pointer so the agent can reach the file the comment was left on.
-  if (pageComments.length > 0) {
-    lines.push('');
-    lines.push('## Comments');
-    for (const c of pageComments) {
-      // Comments don't carry an elementId we can look up here; rely on the
-      // selector and skip source pointers for them.
-      lines.push(`- note on ${c.selector}: ${c.text.trim()}`);
-    }
+  // Group style edits by the affected element and breakpoint/state; keep all
+  // exact output values and explicit states. Do not truncate CSS values.
+  const styleGroups = new Map<string, typeof styles>();
+  for (const change of styles) {
+    const key = change.elementId + '|' + (change.state || '') + '|' + (change.breakpoint || 'desktop') + '|' + (change.viewportWidth || '');
+    if (!styleGroups.has(key)) styleGroups.set(key, []);
+    styleGroups.get(key)!.push(change);
+  }
+  for (const group of styleGroups.values()) {
+    const first = group[0];
+    const changes = group.map(change =>
+      camelToKebab(change.property) + ': ' + tokenize(change.newValue, lookup, used)).join('; ');
+    const state = first.state ? ' (' + (MOTION_STATE_LABEL[first.state] || first.state) + ')' : '';
+    entries.push({ time: Math.min(...group.map(c => c.timestamp)), order: 1,
+      text: 'Style ' + elementLabel(first.elementId, first.selector) + state + ' → ' +
+        changes + '.' + breakpointTag(group) });
   }
 
-  // Available design tokens — only those actually referenced in the changes.
-  // Saves the agent a discovery step ("does this codebase have a --primary
-  // var?") and signals which design-system primitives this edit touched.
-  if (tokensUsed.size > 0) {
-    lines.push('');
-    lines.push('## Design tokens used');
-    const usedList = tokens.filter(t => tokensUsed.has(t.cssVar));
-    for (const t of usedList) {
-      lines.push(`- \`${t.cssVar}\`: ${t.value}`);
-    }
+  for (const change of texts) {
+    const value = JSON.stringify(change.newText);
+    const name = change.attributeName ? ' ' + change.attributeName : ' text';
+    entries.push({ time: change.timestamp, order: 2, text: 'Set ' +
+      elementLabel(change.elementId, change.selector) + name + ' → ' + value +
+      '.' + breakpointTag([change]) });
+  }
+  const tokenEdits = getTokenEdits();
+  for (const edit of tokenEdits) {
+    entries.push({ time: 0, order: 0, text: 'Set token ' + edit.cssVar +
+      (edit.scopeSelector !== ':root' ? ' on ' + edit.scopeSelector : '') +
+      ' → ' + edit.current + ' at its definition.' });
   }
 
+  entries.sort((a, b) => a.time - b.time || a.order - b.order);
+  if (entries.length === 0 && pageComments.length === 0) lines.push('- No changes recorded.');
+  for (const entry of entries) lines.push('- ' + entry.text);
+  for (const comment of pageComments) {
+    lines.push('- Note on ' + comment.selector + ': ' + comment.text.trim());
+  }
   return lines.join('\n');
 }
 
 // ── GitHub issue body — same content with a heavier preamble ──
 export function exportGitHubIssueBody(): string {
-  const lines: string[] = [];
-  lines.push(`## Visual changes required`);
-  lines.push(``);
-  lines.push(`**Page:** ${document.title}`);
-  lines.push(`**URL:** ${window.location.href}`);
-  lines.push(``);
-  lines.push(exportMarkdown());
-  return lines.join('\n');
+  return exportMarkdown();
 }
