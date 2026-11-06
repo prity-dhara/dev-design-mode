@@ -40,13 +40,13 @@ function isRepeatedTextSpanHost(el: HTMLElement): boolean {
   const children = Array.from(el.children) as HTMLElement[];
   if (children.length < 4 || children.length > 500 ||
       children.some(child => child.tagName !== 'SPAN')) return false;
-  if (Array.from(el.childNodes).some(node => node.nodeType === 3 &&
+  if (Array.from(el.childNodes || []).some(node => node.nodeType === 3 &&
     !!node.textContent?.trim())) return false;
   if (children.some(child =>
-    !child.textContent?.trim() || child.textContent.length > 100 ||
+    !child.textContent?.trim() || (child.textContent || '').length > 100 ||
     !!child.querySelector('a,button,img,svg,video,iframe,input,textarea,select'))) return false;
   const marked = children.filter(child =>
-    child.classList.length > 0 || child.hasAttribute('style') ||
+    classes(child).length > 0 || child.hasAttribute('style') ||
     child.hasAttribute('aria-hidden')).length;
   return marked >= Math.ceil(children.length * 0.7);
 }
