@@ -98,3 +98,49 @@ test('ordinary layout div containing a heading is not mistaken for one text valu
   root.querySelector = (selector: string) => selector.includes('h1') ? {} : null;
   assert.equal(api.isSplitTextHost(root), false);
 });
+
+function unmarkedUnit(text: string, style = ''): any {
+  return {
+    tagName: 'SPAN', textContent: text, attributes: [],
+    getAttribute(name: string) { return name === 'style' ? style : ''; },
+    querySelector: () => null,
+  };
+}
+
+test('classless GSAP word spans select the complete sentence, not one word', () => {
+  const api = load();
+  const parts = ['Outcomes ', 'delivered ', 'through ', 'GalentAI ', 'platform-based ', 'engineering ', 'services.'];
+  const children = parts.map((p, i) => unmarkedUnit(p, i === 0 ? 'transform:translateY(0px)' : ''));
+  const host: any = {
+    tagName: 'P', textContent: parts.join(''), parentElement: null,
+    querySelectorAll: () => children,
+    getAttribute: () => '',
+    querySelector: () => null,
+  };
+  const clicked: any = { ...children[6], parentElement: host };
+  assert.equal(api.isSplitTextHost(host), true);
+  assert.equal(api.getSplitTextHost(clicked), host);
+});
+
+test('ordinary heading with two decorative spans is not recognized as SplitText', () => {
+  const api = load();
+  const children = [unmarkedUnit('Hello '), unmarkedUnit('world')];
+  const host: any = {
+    tagName: 'H2', textContent: 'Hello world', parentElement: null,
+    querySelectorAll: () => children,
+    querySelector: () => null,
+  };
+  assert.equal(api.isSplitTextHost(host), false);
+});
+
+test('animated split word markup with a nested semantic heading is not treated as layout text', () => {
+  const api = load();
+  const children = ['One ', 'two ', 'three ', 'four '].map(s => unmarkedUnit(s, 'transform:translateY(0)'));
+  const layout: any = {
+    tagName: 'DIV', textContent: 'One two three four ', parentElement: null,
+    querySelectorAll: () => children,
+    querySelector: (selector: string) => selector.includes('h1') ? {} : null,
+    getAttribute: () => '',
+  };
+  assert.equal(api.isSplitTextHost(layout), false);
+});
