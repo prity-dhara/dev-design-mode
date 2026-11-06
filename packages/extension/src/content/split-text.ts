@@ -42,6 +42,13 @@ export function isSplitTextRoot(el: HTMLElement): boolean {
   return explicit || (accessible && nested.filter(isPart).length >= 2);
 }
 
+/** Only generated fragments, never the authored heading or paragraph. */
+export function isLogicalSplitWrapper(el: HTMLElement): boolean {
+  return isGeneratedSplitWrapper(el) ||
+    (classes(el).some(name => genericClass.test(name)) &&
+      !!splitTextRoot(el));
+}
+
 export function splitTextRoot(target: HTMLElement): HTMLElement | null {
   let current: HTMLElement | null = target;
   for (let depth = 0; current && depth < 16; current = current.parentElement, depth++) {
