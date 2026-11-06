@@ -329,8 +329,8 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
   const tokens = getTokenIndex().tokens;
   const lookup = buildTokenLookup(tokens);
   const used = new Set<string>();
-  const created = new Map(dom.filter(c => c.action === 'duplicate' || c.action === 'insert').map(c => [c.elementId, c]));
-  const finalMoves = new Map(dom.filter(c => c.action === 'move' && c.destination).map(c => [c.elementId, c]));
+  const created = new Map<string, (typeof dom)[number]>(dom.filter(c => c.action === 'duplicate' || c.action === 'insert').map(c => [c.elementId, c] as const));
+  const finalMoves = new Map<string, (typeof dom)[number]>(dom.filter(c => c.action === 'move' && c.destination).map(c => [c.elementId, c] as const));
   const createdContext = (elementId: string): string => {
     const el = getElementById(elementId);
     if (created.has(elementId)) {
