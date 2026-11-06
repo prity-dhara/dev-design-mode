@@ -121,11 +121,93 @@ export function flattenAnimatedText(root: ParentNode = document): number {
   return changed;
 }
 
+
+/**
+ * Restore the server-authored HTML for split headings where possible.
+ *
+ * A live published page is already running custom scripts when the extension
+ * opens. Rather than guessing where GSAP added spaces or losing author-styled
+ * spans, fetch the *same page's HTML source* and use the matching untouched
+ * heading markup as the Design Mode preview. This does NOT block JavaScript.
+ *
+ * Only exact structural/text matches are applied. Dynamic/unmatched pages
+ * retain the conservative runtime unwrapping fallback.
+ */
+let sourceRequest: AbortController | null = null;
+
+function structuralPath(el: HTMLElement): string | null {
+  const segments: string[] = [];
+  let current: HTMLElement | null = el;
+  for (let depth = 0; current && current !== document.body && depth < 40; depth++) {
+    const parent: HTMLElement | null = current.parentElement;
+    if (!parent) return null;
+    const siblings = Array.from(parent.children).filter(
+      child => child.tagName === current!.tagName,
+    );
+    const index = siblings.indexOf(current) + 1;
+    if (index < 1) return null;
+    segments.unshift(current.tagName.toLowerCase() + ':nth-of-type(' + index + ')');
+    current = parent;
+  }
+  return current === document.body && segments.length
+    ? 'body > ' + segments.join(' > ')
+    : null;
+}
+
+function sameAuthorText(a: string, b: string): boolean {
+  // SplitText sometimes removes literal spaces while retaining word masks.
+  // Compare the actual characters rather than the generated whitespace.
+  const normalize = (value: string) => value.replace(/\\s+/g, '').normalize('NFC');
+  return !!a && !!b && normalize(a) === normalize(b);
+}
+
+export async function restoreWebflowSourceText(signal?: AbortSignal): Promise<number> {
+  if (!/^https?:$/.test(location.protocol) || !document.body) return 0;
+  if (snapshots.size === 0) return 0;
+  const response = await fetch(location.href, {
+    credentials: 'same-origin',
+    cache: 'no-store',
+    signal,
+  });
+  if (!response.ok || !/text\\/html/i.test(response.headers.get('content-type') || '')) return 0;
+  const html = await response.text();
+  if (signal?.aborted) return 0;
+  const originalPage = new DOMParser().parseFromString(html, 'text/html');
+  let restored = 0;
+
+  for (const [live, snapshot] of snapshots) {
+    if (signal?.aborted) break;
+    if (!live.isConnected || !snapshot.originalText) continue;
+    // Once a user changes the text, do not overwrite their edit.
+    if (!sameAuthorText(live.textContent || '', snapshot.originalText)) continue;
+    const path = structuralPath(live);
+    if (!path) continue;
+    const source = originalPage.querySelector<HTMLElement>(path);
+    if (!source || source.tagName !== live.tagName) continue;
+    if (!sameAuthorText(source.textContent || '', snapshot.originalText)) continue;
+    // Never inject executable/embedded page content into an editable heading.
+    if (source.querySelector('script,iframe,object,embed')) continue;
+    const nodes = Array.from(source.childNodes).map(node => document.importNode(node, true));
+    if (!nodes.length) continue;
+    live.replaceChildren(...nodes);
+    const label = source.getAttribute('aria-label');
+    if (label !== null) live.setAttribute('aria-label', label);
+    else live.removeAttribute('aria-label');
+    snapshot.previewNode = null;
+    restored++;
+  }
+  return restored;
+}
+
 let observer: MutationObserver | null = null;
 let scheduled: ReturnType<typeof setTimeout> | null = null;
 export function startSplitTextCleanup(): void {
   stopSplitTextCleanup(false);
   flattenAnimatedText();
+  // Prefer exact original markup over approximating lines/words after GSAP.
+  sourceRequest = new AbortController();
+  void restoreWebflowSourceText(sourceRequest.signal).catch(() => {});
+
   // GSAP may split headings after initial page load, on a resize, or when
   // ScrollTrigger refreshes. Unwrap newly generated markup while enabled.
   observer = new MutationObserver(records => {
@@ -144,6 +226,8 @@ export function startSplitTextCleanup(): void {
 }
 
 export function stopSplitTextCleanup(restore = true): void {
+  sourceRequest?.abort();
+  sourceRequest = null;
   observer?.disconnect(); observer = null;
   if (scheduled !== null) clearTimeout(scheduled);
   scheduled = null;
