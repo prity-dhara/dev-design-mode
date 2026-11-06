@@ -13,8 +13,15 @@ export function isEditableTextHost(el: HTMLElement): boolean {
   // A single text node or a mixture of authored inline spans/links is a
   // logical text block. Never treat block children (divs, headings,
   // paragraphs, images, lists, buttons) as one text field.
-  return Array.from(el.querySelectorAll<HTMLElement>('*')).every(child =>
-    INLINE_TEXT.has(child.tagName));
+  const descendants = Array.from(el.querySelectorAll<HTMLElement>('*'));
+  if (descendants.every(child => INLINE_TEXT.has(child.tagName))) return true;
+  // A text-only Webflow div may contain a decorative SVG/icon as a sibling
+  // to its literal text node. That icon should not hide Text Content.
+  // Rich-text saving preserves these non-editable nodes as placeholders.
+  const ownText = Array.from(el.childNodes || []).some(node =>
+    node.nodeType === 3 && !!node.textContent?.trim());
+  return ownText && descendants.every(child =>
+    INLINE_TEXT.has(child.tagName) || !(child.textContent || '').trim());
 }
 
 
