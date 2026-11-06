@@ -1,7 +1,7 @@
 // Unwrap runtime GSAP SplitText markup in the Design Mode *preview*.
 // The original HTML host and its Webflow classes stay intact. This does not
 // modify the site's source code or remove the GSAP library.
-const generatedClass = /^(?:gsap[_-]split[_-][\\w-]+|(?:line|lines|word|words|char|chars))$/i;
+const generatedClass = /^(?:gsap[_-]split[_-][\w-]+|(?:line|lines|word|words|char|chars))$/i;
 const wordClass = /^(?:word|words|gsap[_-]split[_-]word)$/i;
 const generatedAttribute = ['data-split-line', 'data-split-word', 'data-split-char'];
 const rememberedRoots = new WeakSet<HTMLElement>();
@@ -57,7 +57,7 @@ export function splitTextValue(el: HTMLElement): string {
   const source = el.textContent || '';
   // Generated word spans often rely on CSS margins instead of spaces.
   // If the DOM already has whitespace, retain it without guessing.
-  if (/\\s/.test(source)) return source.replace(/\\s+/g, ' ').trim();
+  if (/\s/.test(source)) return source.replace(/\s+/g, ' ').trim();
   const words = descendants(el).filter(isWord);
   if (words.length >= 2) return words.map(w => w.textContent?.trim() || '').join(' ').trim();
   return source;
@@ -154,7 +154,7 @@ export function restoreAnimatedText(): void {
   for (const [el, snapshot] of snapshots) {
     if (!el.isConnected) continue;
     // Do not undo user text edits: they are tracked separately.
-    if ((el.textContent || '').replace(/\\s+/g, ' ').trim() !== snapshot.originalText.replace(/\\s+/g, ' ').trim()) continue;
+    if ((el.textContent || '').replace(/\s+/g, ' ').trim() !== snapshot.originalText.replace(/\s+/g, ' ').trim()) continue;
     el.replaceChildren(...snapshot.nodes);
     if (snapshot.ariaLabel !== null) el.setAttribute('aria-label', snapshot.ariaLabel);
     rememberedRoots.delete(el);
