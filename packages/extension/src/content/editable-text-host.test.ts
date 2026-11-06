@@ -63,6 +63,18 @@ function add(parent: FakeElement, ...kids: FakeElement[]) {
   (parent as any).children = parent._children;
 }
 
+describe('text host with a decorative child', () => {
+  it('keeps a literal text node editable alongside a textless SVG icon', () => {
+    const root = el('DIV', 'EXPORT', ['p-tagline']);
+    add(root, el('SVG', ''));
+    (root as any).childNodes = [
+      { nodeType: 3, textContent: 'EXPORT' },
+      { nodeType: 1, textContent: '' },
+    ];
+    assert.equal(isEditableTextHost(root), true);
+  });
+});
+
 describe('text found inside decorated Webflow wrappers', () => {
   it('shows EXPORT as one text target when div.p-tagline contains an icon and a text span', () => {
     const root = el('DIV', 'EXPORT', ['p-tagline']);
