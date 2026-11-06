@@ -1,7 +1,10 @@
 // Unwrap runtime GSAP SplitText markup in the Design Mode *preview*.
 // The original HTML host and its Webflow classes stay intact. This does not
 // modify the site's source code or remove the GSAP library.
-const generatedClass = /^(?:gsap[_-]split[_-][\w-]+|(?:line|lines|word|words|char|chars))$/i;
+// Only explicit GSAP-generated classes are hidden from the Layers panel.
+// Generic .line/.word classes can be authored layout components.
+const generatedClass = /^gsap[_-]split[_-][\w-]+$/i;
+const genericPartClass = /^(?:line|lines|word|words|char|chars)$/i;
 const wordClass = /^(?:word|words|gsap[_-]split[_-]word)$/i;
 const generatedAttribute = ['data-split-line', 'data-split-word', 'data-split-char'];
 const rememberedRoots = new WeakSet<HTMLElement>();
@@ -11,6 +14,10 @@ export function isGeneratedSplitWrapper(el: HTMLElement): boolean {
     generatedAttribute.some(name => el.hasAttribute(name));
 }
 
+function isSplitPart(el: HTMLElement): boolean {
+  return isGeneratedSplitWrapper(el) ||
+    Array.from(el.classList || []).some(name => genericPartClass.test(name));
+}
 function isWord(el: HTMLElement): boolean {
   return Array.from(el.classList || []).some(name => wordClass.test(name)) ||
     el.hasAttribute('data-split-word');
@@ -19,20 +26,20 @@ function descendants(el: HTMLElement): HTMLElement[] {
   return Array.from(el.querySelectorAll<HTMLElement>('*'));
 }
 function generatedChildren(el: HTMLElement): HTMLElement[] {
-  return Array.from(el.children).filter(c => isGeneratedSplitWrapper(c as HTMLElement)) as HTMLElement[];
+  return Array.from(el.children).filter(c => isSplitPart(c as HTMLElement)) as HTMLElement[];
 }
 function splitEvidence(el: HTMLElement): boolean {
   const direct = generatedChildren(el);
   if (!direct.length) return false;
   const all = direct.flatMap(c => [c, ...descendants(c)]);
   const namedGsap = all.some(c => Array.from(c.classList || []).some(cls => /^gsap[_-]split[_-]/i.test(cls)));
-  const nested = all.filter(c => isGeneratedSplitWrapper(c)).length >= 2;
+  const nested = all.filter(c => isSplitPart(c)).length >= 2;
   const repeated = direct.length >= 2;
   return namedGsap || nested || repeated;
 }
 
 export function isSplitTextRoot(el: HTMLElement): boolean {
-  if (isGeneratedSplitWrapper(el)) return false;
+  if (isSplitPart(el)) return false;
   if (rememberedRoots.has(el)) return true;
   if (splitEvidence(el)) {
     rememberedRoots.add(el);
@@ -82,7 +89,7 @@ function unwrapHost(el: HTMLElement): boolean {
 
   // Replace only generated children if a Webflow element also contains
   // authored inline markup (strong/em/a/spans). Never delete those nodes.
-  const hasAuthoredChild = Array.from(el.children).some(c => !isGeneratedSplitWrapper(c as HTMLElement));
+  const hasAuthoredChild = Array.from(el.children).some(c => !isSplitPart(c as HTMLElement));
   const originalNodes = Array.from(el.childNodes);
   const ariaLabel = el.getAttribute('aria-label');
   let previewNode: Text | null = null;
