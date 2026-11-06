@@ -11,6 +11,7 @@ import { showAxisGuides, hideAxisGuides, showDistance, hideDistance, showPairwis
 import { baseCursor, restoreBaseCursor } from './custom-cursor';
 import { measureChildGap } from './child-gap';
 import type { ElementInfo as SharedElementInfo } from '@shared/types';
+import { splitTextRoot, isSplitTextRoot, splitTextValue } from './split-text';
 
 export type IconInfo = { library: string; name: string };
 
@@ -23,7 +24,7 @@ export type ElementInfo = Pick<SharedElementInfo, 'rect' | 'childGap'> & {
   // camelCase compound-shadow prop → the vars it's composed from. Drives the
   // multi-token shadow chip (a single `styleTokens` entry can't hold a stack).
   shadowVars: Record<string, ShadowVarInfo>;
-  textContent: string | null; innerHTML: string;
+  textContent: string | null; innerHTML: string; splitText?: boolean;
   attributes: Record<string, string>; selector: string;
   iconInfo?: IconInfo;
   parentDisplay?: string;
@@ -113,7 +114,8 @@ export function buildElementInfo(el: HTMLElement, skipTokens = false): ElementIn
     styleTokens: skipTokens ? {} : getAuthoredVarsForElement(el),
     shadowVars: skipTokens ? {} : getAuthoredShadowVars(el),
     rect: getElementRect(el),
-    textContent: el.textContent?.slice(0, 500) || null,
+    textContent: (isSplitTextRoot(el) ? splitTextValue(el) : el.textContent || '').slice(0, 500) || null,
+    splitText: isSplitTextRoot(el),
     innerHTML,
     attributes: attrs, selector: generateSelector(el),
     iconInfo: detectIconInfo(el),
@@ -140,8 +142,9 @@ function isDMElement(el: HTMLElement): boolean {
 
 function handleMouseOver(e: MouseEvent) {
   if (isResizing()) return;
-  const t = e.target as HTMLElement;
-  if (!t || isDMElement(t)) return;
+  const target = e.target as HTMLElement;
+  if (!target || isDMElement(target)) return;
+  const t = splitTextRoot(target) || target;
   showHover(t);
 
   const hovId = getOrAssignId(t);
@@ -205,8 +208,9 @@ function handleMouseOut() {
 // drag — armMoveDrag waits for a 3 px movement before committing, so a
 // plain click on the same element still falls through to handleClick.
 function handleMouseDown(e: MouseEvent) {
-  const t = e.target as HTMLElement;
-  if (!t || isDMElement(t)) return;
+  const target = e.target as HTMLElement;
+  if (!target || isDMElement(target)) return;
+  const t = splitTextRoot(target) || target;
   e.preventDefault();
   if (e.shiftKey) {
     window.getSelection()?.removeAllRanges();
@@ -225,8 +229,9 @@ function handleMouseDown(e: MouseEvent) {
 }
 
 function handleClick(e: MouseEvent) {
-  const t = e.target as HTMLElement;
-  if (!t || isDMElement(t)) return;
+  const target = e.target as HTMLElement;
+  if (!target || isDMElement(target)) return;
+  const t = splitTextRoot(target) || target;
   e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
   // Cancel any pending hover info — selection takes precedence
   if (hoverDebounceTimer) { clearTimeout(hoverDebounceTimer); hoverDebounceTimer = null; }
