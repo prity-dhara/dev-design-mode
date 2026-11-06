@@ -27,7 +27,7 @@ import type { ElementInfo } from './inspector';
 import { initCustomCursor, applyBaseCursor, clearBaseCursor } from './custom-cursor';
 import { getStyleChanges, getTextChanges, getDomChanges, clearAllChanges, applyStyleChange, applyWithCompanions, computeCompanions, applyTextChange, applyHtmlChange, applyAttributeChange, removeStyleChange, removeDomChange, removeTextChange, recordDomChange, connectToServer, disconnectFromServer, isConnected, isAgentConnected, getChangeReport, reorderChange, getAllChanges, replaySession, setOverridesEnabled, applyChangesPayload, setUnhandledMessageHandler, sendRelayResponse, setChangesStatus, syncCommentChange, syncCommentDeleted, stageAgentHandoff, getFeedbackSessionView, isLiveFeedbackSupported, stopFeedbackSessionFromUi } from './change-tracker';
 import { isSafeRichTextHref } from '../rich-text-preservation';
-import { isSplitTextRoot, splitTextValue, flattenAnimatedText, restoreAnimatedText } from './split-text';
+import { isSplitTextRoot, splitTextValue, startSplitTextCleanup, stopSplitTextCleanup } from './split-text';
 import { copyElement, pasteElement, duplicateElement, moveElement } from './html-editor';
 import { isTypingTarget } from './shortcut-binding';
 import { deleteElements, type DeleteCommand } from './delete-command';
@@ -931,7 +931,7 @@ function enable() {
   if (on) return;
   on = true;
   // Replace runtime SplitText wrappers with one editable preview per heading.
-  flattenAnimatedText();
+  startSplitTextCleanup();
   const generation = ++activationGeneration;
   const isCurrent = () => on && generation === activationGeneration && dmIsActiveInstance();
   document.addEventListener('keydown', onHistoryKeyDown, true);
@@ -965,7 +965,7 @@ function disable() {
   if (!on) return;
   on = false;
   // Put the original GSAP nodes back if no text was edited.
-  restoreAnimatedText();
+  stopSplitTextCleanup();
   activationGeneration++;
   document.removeEventListener('keydown', onHistoryKeyDown, true);
   restoreOriginalPreview();
