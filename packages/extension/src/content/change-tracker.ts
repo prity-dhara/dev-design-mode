@@ -1159,7 +1159,14 @@ export function applyTextChange(
   if (!canEditRoute()) return null;
   const el = getElementById(elementId);
   if (!el) return null;
-  const priorText = isSplitTextRoot(el) ? splitTextValue(el) : (el.textContent || '');
+  // Keep this low-level API safe even if a caller bypasses SET_TEXT.
+  if (isSplitTextRoot(el)) {
+    return recordSplitTextSourceChange(
+      elementId, text, splitTextValue(el),
+      `${location.href} | ${generateSelector(el)} (original SplitText source)`,
+    );
+  }
+  const priorText = el.textContent || '';
   el.textContent = text;
   // Dedup per element (mirrors applyStyleChange): one TextChange row per
   // element, preserving the ORIGINAL oldText. Returning to that original
@@ -1242,6 +1249,14 @@ export function applyHtmlChange(
   if (!canEditRoute()) return null;
   const el = getElementById(elementId);
   if (!el) return null;
+  if (isSplitTextRoot(el)) {
+    const draft = document.createElement('div');
+    draft.innerHTML = html;
+    return recordSplitTextSourceChange(
+      elementId, draft.textContent || '', splitTextValue(el),
+      `${location.href} | ${generateSelector(el)} (original SplitText source)`,
+    );
+  }
   const priorHtml = el.innerHTML || '';
   let nextHtml = html;
   if (preserveStructure) {
