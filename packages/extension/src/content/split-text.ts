@@ -28,10 +28,33 @@ function isWord(el: HTMLElement): boolean {
   return classes(el).some(name => wordClass.test(name)) || el.hasAttribute('data-split-word');
 }
 
+// Some Webflow/GSAP splitters generate styled <span> elements without
+// conventional .word or .char classes. These appeared as "Span media" in
+// the rich-text editor. Treat a repeated, text-only run as a logical source,
+// but NEVER remove the spans or mutate the live animation.
+function isRepeatedTextSpanHost(el: HTMLElement): boolean {
+  const textHost = /^(?:H[1-6]|P|BLOCKQUOTE)$/.test(el.tagName) ||
+    (el.tagName === 'DIV' && classes(el).some(name =>
+      /^(?:text-size-|text-style-|heading-style-)/.test(name)));
+  if (!textHost) return false;
+  const children = Array.from(el.children) as HTMLElement[];
+  if (children.length < 4 || children.length > 500 ||
+      children.some(child => child.tagName !== 'SPAN')) return false;
+  if (Array.from(el.childNodes).some(node => node.nodeType === 3 &&
+    !!node.textContent?.trim())) return false;
+  if (children.some(child =>
+    !child.textContent?.trim() || child.textContent.length > 100 ||
+    !!child.querySelector('a,button,img,svg,video,iframe,input,textarea,select'))) return false;
+  const marked = children.filter(child =>
+    child.classList.length > 0 || child.hasAttribute('style') ||
+    child.hasAttribute('aria-hidden')).length;
+  return marked >= Math.ceil(children.length * 0.7);
+}
+
 export function isSplitTextRoot(el: HTMLElement): boolean {
   if (isPart(el)) return false;
   const directParts = parts(el);
-  if (!directParts.length) return false;
+  if (!directParts.length) return isRepeatedTextSpanHost(el);
   // Evidence must occur inside *direct* generated children. A surrounding
   // section/card is not treated as one text element just because it contains
   // a split heading further down the tree.
@@ -76,6 +99,13 @@ export function splitTextValue(el: HTMLElement): string {
   const original = el.getAttribute('data-split-original') || el.getAttribute('data-original-text');
   if (original && isSplitTextRoot(el)) return original;
   const text = el.textContent || '';
+  if (isRepeatedTextSpanHost(el) && !/\s/.test(text)) {
+    const tokens = Array.from(el.children).map(child => (child.textContent || '').trim());
+    // A run of character spans must remain concatenated; word spans
+    // generally need spaces that were previously provided by CSS margins.
+    if (tokens.every(token => token.length === 1)) return text;
+    return tokens.join(' ');
+  }
   if (/\s/.test(text)) return text;
   // Certain Webflow SplitText effects remove spaces between generated words.
   // Use leaf word wrappers; mask+inner word must not be double-counted.
