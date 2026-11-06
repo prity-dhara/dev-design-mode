@@ -21,6 +21,7 @@ import {
 } from '../platform/launch-surface';
 import morphdom from 'morphdom';
 import { openPresetDialog } from './preset-dialog';
+import { isEditableTextOnlyDiv } from './text-edit-eligibility';
 import { hasNativeColourPicker, pickColour, type EyeDropperHost } from './page-colour-picker';
 import { hasPresetStyles } from '../preset-styles';
 import type { ElementInfo as SharedElementInfo } from '@shared/types';
@@ -7703,13 +7704,10 @@ function renderDesignTab(): string {
   // will replace its inner content, so we surface a one-line warning when that
   // would happen instead of hiding the field entirely.
   const directTextTags = ['p','h1','h2','h3','h4','h5','h6','span','a','li','td','th','label','button','strong','em','b','i','small','mark','figcaption','caption','dt','dd','abbr','cite','q','code','pre','blockquote'];
-  // An ordinary text-only <div> (common in custom sites and Webflow) is
-  // also an editable text element. Do not expose text editing on layout divs
-  // containing other blocks, media or interactive controls: their entire
-  // component tree must never be overwritten as paragraph text.
-  const divHtml = (displayInfo as any).innerHTML || '';
-  const divContainsBlocks = /<\s*(?:div|section|article|main|aside|header|footer|nav|h[1-6]|p|ul|ol|li|table|form|button|input|select|textarea|img|svg|video|audio|iframe|canvas|figure|blockquote)\b/i.test(divHtml);
-  const isTextTag = directTextTags.includes(tag) || (tag === 'div' && !divContainsBlocks);
+  // Custom sites and Webflow often use text-only divs for paragraphs.
+  // Protect layout divs with nested blocks or media from rich-text edits.
+  const isTextTag = directTextTags.includes(tag) ||
+    (tag === 'div' && isEditableTextOnlyDiv((displayInfo as any).innerHTML || '', displayInfo.textContent));
   const showTextEdit = isTextTag && !!displayInfo.textContent?.trim();
   const textVal = displayInfo.textContent || '';
   // The rich-text editor preserves HTML structure (headings/links/spans),
