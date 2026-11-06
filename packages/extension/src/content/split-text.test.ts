@@ -59,3 +59,42 @@ test('editing and restoring animated heading preserves original wrapper nodes', 
   assert.equal(element.nodes.map((n: any) => n.nodeValue).join(''), 'We build websites');
   assert.deepEqual(element.nodes, originalNodes);
 });
+
+test('GSAP character spans are detected with ordinary whitespace-separated classes', () => {
+  const api = load();
+  const root = heading(['char gsap-char', 'char', 'word', 'line']);
+  assert.equal(api.isSplitTextHost(root), true);
+});
+
+test('clicking a character inside nested GSAP word selects the whole heading', () => {
+  const api = load();
+  const root = heading(['line', 'word', 'char', 'char']);
+  const word: any = {
+    tagName: 'DIV', parentElement: root, attributes: [], textContent: 'build',
+    getAttribute: () => null, querySelectorAll: () => [wrapper('char'), wrapper('char')],
+    querySelector: () => null,
+  };
+  const char: any = {
+    tagName: 'SPAN', parentElement: word, attributes: [], textContent: 'b',
+    getAttribute: () => 'char', querySelectorAll: () => [], querySelector: () => null,
+  };
+  assert.equal(api.getSplitTextHost(char), root);
+});
+
+test('a GSAP-split text-only div is editable as one host', () => {
+  const api = load();
+  const root = heading(['word', 'char', 'char'], 'DIV');
+  assert.equal(api.isSplitTextHost(root), true);
+  const char: any = {
+    tagName: 'SPAN', parentElement: root, attributes: [], textContent: 'W',
+    getAttribute: () => 'char', querySelectorAll: () => [], querySelector: () => null,
+  };
+  assert.equal(api.getSplitTextHost(char), root);
+});
+
+test('ordinary layout div containing a heading is not mistaken for one text value', () => {
+  const api = load();
+  const root = heading(['char', 'char'], 'DIV');
+  root.querySelector = (selector: string) => selector.includes('h1') ? {} : null;
+  assert.equal(api.isSplitTextHost(root), false);
+});
