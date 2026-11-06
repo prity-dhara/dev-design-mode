@@ -7320,7 +7320,10 @@ function renderDesignTab(): string {
   // would happen instead of hiding the field entirely.
   const directTextTags = ['p','h1','h2','h3','h4','h5','h6','span','a','li','td','th','label','button','strong','em','b','i','small','mark','figcaption','caption','dt','dd','abbr','cite','q','code','pre','blockquote'];
   const isTextTag = directTextTags.includes(tag);
-  const showTextEdit = isTextTag && !!displayInfo.textContent;
+  // Webflow often uses a div.text-size-* as the authored text host.
+  // Only enable the div text editor when it is a confirmed GSAP SplitText
+  // source, not for arbitrary layout containers with nested child content.
+  const showTextEdit = (isTextTag || !!(displayInfo as any).splitText) && !!displayInfo.textContent;
   const textVal = displayInfo.textContent || '';
   // The rich-text editor preserves HTML structure (headings/links/spans),
   // so the old "saves will flatten children" warning no longer applies.
