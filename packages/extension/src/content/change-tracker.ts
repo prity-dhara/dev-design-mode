@@ -4,6 +4,7 @@
 // ============================================================
 
 import { isSplitTextRoot, splitTextValue } from './split-text';
+import { splitTypographyProps, splitTypographySelector } from './split-text-style';
 import { getElementById, generateSelector, describeElement, getComputedStyleSubset, reserveIdsAtLeast } from './helpers';
 import { authoredTokenValueFor, bumpStyleGen } from './token-engine';
 import { DEFAULT_WS_PORT, DATA_ATTR, classifyBreakpoint, type Breakpoint } from '../shared';
@@ -401,6 +402,15 @@ function rebuildStyleSheet() {
     const escaped = CSS.escape(elementId);
     const base = `${userOverrideScope()}[data-dm-id="${escaped}"][data-dm-id]`;
     addRule(base, props);
+    // A GSAP split heading remains ONE editable Webflow element. Mirror only
+    // typography into its generated word/line/char wrappers, since the site
+    // may set typography inline on individual spans. Never override the
+    // transforms, opacity, positioning or overflow used by the timeline.
+    const splitHost = getElementById(elementId);
+    if (splitHost && isSplitTextRoot(splitHost)) {
+      const typography = splitTypographyProps(props);
+      if (typography.size) addRule(splitTypographySelector(base), typography);
+    }
     const inherited = new Map<string, string>();
     for (const [prop] of props) if (INHERITED_TYPOGRAPHY_PROPS.has(prop)) inherited.set(prop, 'revert');
     if (inherited.size) addRule(`${userOverrideScope()}[data-dm-id="${escaped}"] [data-dm-id]`, inherited, '');
@@ -422,6 +432,16 @@ function rebuildStyleSheet() {
       const selector = state === '@starting' ? base
         : `${base}${state}, ${base}.dm-force-${state.replace(/[^a-z-]/gi, '')}`;
       addRule(selector, props, 'important', state === '@starting');
+      const splitHost = getElementById(elementId);
+      if (splitHost && isSplitTextRoot(splitHost)) {
+        const typography = splitTypographyProps(props);
+        if (typography.size) {
+          const childSelector = state === '@starting'
+            ? splitTypographySelector(base)
+            : selector.split(', ').map(splitTypographySelector).join(', ');
+          addRule(childSelector, typography, 'important', state === '@starting');
+        }
+      }
     }
   }
   syncUserStyles(Array.from(sheet.cssRules, rule => rule.cssText).join('\n'));
