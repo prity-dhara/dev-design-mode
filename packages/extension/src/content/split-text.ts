@@ -31,24 +31,38 @@ export function getSplitTextHost(target: HTMLElement): HTMLElement | null {
   return null;
 }
 
-// Keep original spans, inline transforms and GSAP refs in the live DOM.
-// Distribute new content across existing leaf text nodes, preserving each
-// node's approximate original share. The agent edits original source text
-// and GSAP can perform an exact responsive re-split on the next render.
-export function previewSplitText(el: HTMLElement, text: string): boolean {
-  if (!isSplitTextHost(el)) return false;
+// Snapshot/recover text nodes without replacing GSAP-owned DOM elements.
+export function splitTextNodes(el: HTMLElement): Text[] {
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   let node: Node | null;
-  while ((node = walker.nextNode())) {
-    if (node.nodeValue !== null && node.nodeValue.length) nodes.push(node as Text);
-  }
+  while ((node = walker.nextNode())) nodes.push(node as Text);
+  return nodes;
+}
+
+export function captureSplitTextSegments(el: HTMLElement): string[] {
+  return splitTextNodes(el).map(node => node.nodeValue || '');
+}
+
+export function restoreSplitTextSegments(el: HTMLElement, segments: string[]): boolean {
+  const nodes = splitTextNodes(el);
+  if (nodes.length !== segments.length) return false;
+  nodes.forEach((node, index) => { node.nodeValue = segments[index]; });
+  return true;
+}
+
+// Keep original spans, inline transforms and GSAP refs in the live DOM.
+// Redistribute new content across existing leaf text nodes for a best-effort
+// on-page preview. Accurate line breaks require the site's own re-split.
+export function previewSplitText(el: HTMLElement, text: string): boolean {
+  if (!isSplitTextHost(el)) return false;
+  const nodes = splitTextNodes(el).filter(node => node.nodeValue !== null);
   if (!nodes.length) return false;
-  const originalSizes = nodes.map(n => n.nodeValue?.length || 0);
+  const originalSizes = nodes.map(node => node.nodeValue?.length || 0);
   const total = originalSizes.reduce((a, b) => a + b, 0);
+  if (!total) return false;
   let position = 0;
   let shareSoFar = 0;
-  // Proportionate division, exact length preservation, no DOM replacement.
   for (let i = 0; i < nodes.length; i++) {
     shareSoFar += originalSizes[i];
     const end = i === nodes.length - 1
