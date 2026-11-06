@@ -58,7 +58,7 @@ function el(tagName: string, text = '', classNames: string[] = []): FakeElement 
   return o as FakeElement;
 }
 function add(parent: FakeElement, ...kids: FakeElement[]) {
-  kids.forEach(child => { child.parentElement = parent; });
+  kids.forEach(child => { (child as any).parentElement = parent; });
   parent._children.push(...kids);
   (parent as any).children = parent._children;
 }
