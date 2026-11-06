@@ -85,15 +85,26 @@ export function flattenAnimatedText(root: ParentNode = document): number {
     'h1,h2,h3,h4,h5,h6,p,span,a,blockquote,label,div'
   )).reverse();
   for (const el of candidates) {
-    if (!el.isConnected || splitSnapshots.has(el) || !isSplitTextRoot(el)) continue;
+    if (!el.isConnected || !isSplitTextRoot(el)) continue;
+    const snapshot = splitSnapshots.get(el);
+    if (snapshot && el.firstChild === snapshot.previewNode) continue;
+    // Only touch hosts that currently have split wrapper children.
+    if (!el.children.length || directGroups(el).length !== el.children.length) continue;
     const text = splitTextValue(el);
-    if (!text.trim() || !el.children.length) continue;
-    const nodes = Array.from(el.childNodes);
+    if (!text.trim()) continue;
     const previewNode = document.createTextNode(text);
-    const ariaLabel = el.getAttribute('aria-label');
-    el.replaceChildren(previewNode);
-    if (ariaLabel !== null) el.removeAttribute('aria-label');
-    splitSnapshots.set(el, { nodes, originalText: text, previewNode, ariaLabel });
+    if (snapshot) {
+      // A late GSAP refresh replaced our plain text with new split wrappers.
+      // Restore the clean preview, keeping the first snapshot for safe closing.
+      el.replaceChildren(previewNode);
+      snapshot.previewNode = previewNode;
+    } else {
+      const nodes = Array.from(el.childNodes);
+      const ariaLabel = el.getAttribute('aria-label');
+      el.replaceChildren(previewNode);
+      if (ariaLabel !== null) el.removeAttribute('aria-label');
+      splitSnapshots.set(el, { nodes, originalText: text, previewNode, ariaLabel });
+    }
     count++;
   }
   return count;
