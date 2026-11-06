@@ -435,7 +435,9 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     const name = change.attributeName ? ' ' + change.attributeName : ' text';
     entries.push({ time: change.timestamp, order: 2, text: 'Set ' +
       elementLabel(change.elementId, change.selector) + name + ' → ' + value +
-      '.' + breakpointTag([change]) });
+      (change.isSplitText
+        ? '. GSAP SplitText: update original source text and re-split; preserve animated wrappers.'
+        : '.') + breakpointTag([change]) });
   }
   const tokenEdits = getTokenEdits();
   for (const edit of tokenEdits) {
