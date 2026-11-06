@@ -349,7 +349,7 @@ async function openRoute(tabId: number | null, url: unknown): Promise<OpenRouteR
  * into the page's MAIN world (isolated content scripts cannot see GSAP vars).
  */
 async function updateRegisteredSplitTextInPage(elementId: string, value: string): Promise<{ ok: boolean; reason: string }> {
-  if (!/^dm-\\d+$/.test(elementId) || value.length > 100_000) return { ok: false, reason: 'invalid-request' };
+  if (!/^dm-\d+$/.test(elementId) || value.length > 100_000) return { ok: false, reason: 'invalid-request' };
   const el = document.querySelector<HTMLElement>(`[data-dm-id="${elementId}"]`);
   if (!el) return { ok: false, reason: 'missing-parent' };
   const page = window as typeof window & {
@@ -412,7 +412,7 @@ function dispatchPanelMessage(msg: any, sender: chrome.runtime.MessageSender, se
     const id = msg.elementId;
     const value = msg.text;
     if (sender.tab?.id == null || typeof id !== 'string' ||
-        !/^dm-\\d+$/.test(id) || typeof value !== 'string' ||
+        !/^dm-\d+$/.test(id) || typeof value !== 'string' ||
         value.length > 100_000) {
       sendResponse({ ok: false, reason: 'invalid-request' }); return false;
     }
