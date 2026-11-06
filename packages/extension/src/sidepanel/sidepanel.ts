@@ -683,7 +683,6 @@ browser.storage?.local?.get?.([
     mcpCloudUrl = '';
     mcpCloudToken = '';
     mcpCloudTenantId = '';
-    if (mcpMode === 'cloud') mcpMode = 'local';
     browser.storage?.local?.remove?.(['dm-mcp-cloud-token', 'dm-mcp-cloud-tenant', 'dm-mcp-cloud-url']);
     browser.storage?.local?.set?.({ 'dm-mcp-mode': mcpMode });
   }
