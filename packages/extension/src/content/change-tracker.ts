@@ -3,6 +3,7 @@
 // Records style/text/DOM changes, generates CSS diffs, syncs to server
 // ============================================================
 
+import { isSplitTextRoot, splitTextValue } from './split-text';
 import { getElementById, generateSelector, describeElement, getComputedStyleSubset, reserveIdsAtLeast } from './helpers';
 import { authoredTokenValueFor, bumpStyleGen } from './token-engine';
 import { DEFAULT_WS_PORT, DATA_ATTR, classifyBreakpoint, type Breakpoint } from '../shared';
@@ -1150,7 +1151,7 @@ export function applyTextChange(
   if (!canEditRoute()) return null;
   const el = getElementById(elementId);
   if (!el) return null;
-  const priorText = el.textContent || '';
+  const priorText = isSplitTextRoot(el) ? splitTextValue(el) : (el.textContent || '');
   el.textContent = text;
   // Dedup per element (mirrors applyStyleChange): one TextChange row per
   // element, preserving the ORIGINAL oldText. Returning to that original
