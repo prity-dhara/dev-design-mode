@@ -9,16 +9,9 @@ export function JsonLd({ data }: { data: JsonLdData }) {
   );
 }
 
-const SITE_URL = "https://designmode.app";
-const REPO_URL = "https://github.com/SandeepBaskaran/design-mode";
-const CHROME_URL =
-  "https://chromewebstore.google.com/detail/design-mode/ighgobegfcmjagombgnfhgioflinojih";
-const FIREFOX_URL =
-  "https://addons.mozilla.org/firefox/addon/design-mode-add-on/";
-const SAFARI_URL =
-  "https://github.com/SandeepBaskaran/design-mode/releases/latest";
-const X_URL = "https://x.com/sandeepbaskaran";
-const AUTHOR_URL = "https://sandeepbaskaran.com";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+const REPO_URL = "https://github.com/prity-dhara/dev-design-mode";
+const INSTALL_GUIDE = REPO_URL + "#install-and-test-locally";
 
 const IDS = {
   website: `${SITE_URL}/#website`,
@@ -26,23 +19,23 @@ const IDS = {
   person: `${SITE_URL}/#creator`,
 };
 
+// Legacy export name retained for compatibility with existing page imports.
+// This is project metadata, not an endorsement or personal creator claim.
 export const personSchema = {
   "@context": "https://schema.org",
-  "@type": "Person",
+  "@type": "Organization",
   "@id": IDS.person,
-  name: "Sandeep Baskaran",
-  url: AUTHOR_URL,
-  jobTitle: "Design Engineer",
-  sameAs: [X_URL, REPO_URL, AUTHOR_URL],
-  description:
-    "Design engineer based in Bengaluru and creator of Design Mode, an open-source browser visual editor for AI coding agents.",
+  name: "Dev Agent",
+  url: REPO_URL,
+  sameAs: [REPO_URL],
+  description: "Independent open-source development of the Dev Agent browser visual editor.",
 };
 
 export const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   "@id": IDS.website,
-  name: "Design Mode",
+  name: "Dev Agent",
   url: SITE_URL,
   description:
     "A browser visual editor that captures changes to a rendered webpage and hands them to AI coding agents.",
@@ -53,7 +46,7 @@ export const softwareApplicationSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "@id": IDS.software,
-  name: "Design Mode",
+  name: "Dev Agent",
   description:
     "A browser extension for Chrome, Firefox and Safari for visually editing a rendered webpage, recording the changes, and handing them to a coding agent.",
   applicationCategory: "DesignApplication",
@@ -61,9 +54,9 @@ export const softwareApplicationSchema = {
   softwareRequirements:
     "Desktop Chromium browser with Manifest V3 side-panel support, Firefox 121+, or Safari on macOS with Web Inspector",
   url: SITE_URL,
-  downloadUrl: [CHROME_URL, FIREFOX_URL, SAFARI_URL],
-  installUrl: [CHROME_URL, FIREFOX_URL, SAFARI_URL],
-  sameAs: [REPO_URL, CHROME_URL, FIREFOX_URL, SAFARI_URL],
+  downloadUrl: INSTALL_GUIDE,
+  installUrl: INSTALL_GUIDE,
+  sameAs: [REPO_URL],
   softwareVersion: "3.1.0",
   license: "https://opensource.org/licenses/MIT",
   isPartOf: { "@id": IDS.website },

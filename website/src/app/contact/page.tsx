@@ -9,42 +9,42 @@ import {
 import { DashedLine } from "@/components/dashed-line";
 
 export const metadata = {
-  title: { absolute: "Contact and support | Design Mode" },
+  title: { absolute: "Contact and support | Dev Agent" },
   description:
-    "Get in touch about Design Mode — email, GitHub issues, Discussions, and security disclosure. Bug? Feature idea? Sponsorship question?",
+    "Get in touch about Dev Agent — GitHub issues, local MCP guidance, and security disclosure. Bug or feature idea?",
   keywords: [
-    "Design Mode contact",
-    "bug report Design Mode",
-    "Design Mode support",
-    "Design Mode security disclosure",
+    "Dev Agent contact",
+    "bug report Dev Agent",
+    "Dev Agent support",
+    "Dev Agent security disclosure",
   ],
-  alternates: { canonical: "https://designmode.app/contact" },
+  alternates: { canonical: "/contact" },
   openGraph: {
     type: "website",
-    title: "Contact and support | Design Mode",
+    title: "Contact and support | Dev Agent",
     description:
-      "Get in touch about Design Mode — email, GitHub issues, Discussions, and security disclosure. Bug? Feature idea? Sponsorship question?",
-    url: "https://designmode.app/contact",
+      "Get in touch about Dev Agent — GitHub issues, local MCP guidance, and security disclosure. Bug or feature idea?",
+    url: "/contact",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Design Mode — The visual editor for all your agent’s work",
+        alt: "Dev Agent — The visual editor for all your agent’s work",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Contact and support | Design Mode",
+    title: "Contact and support | Dev Agent",
     description:
-      "Get in touch about Design Mode — email, GitHub issues, Discussions, and security disclosure. Bug? Feature idea? Sponsorship question?",
+      "Get in touch about Dev Agent — GitHub issues, local MCP guidance, and security disclosure. Bug or feature idea?",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Design Mode — The visual editor for all your agent’s work",
+        alt: "Dev Agent — The visual editor for all your agent’s work",
       },
     ],
   },

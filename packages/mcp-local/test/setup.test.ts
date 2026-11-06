@@ -114,9 +114,9 @@ describe('mcp-local guided setup', { concurrency: false, timeout: 15_000 }, () =
     assert.deepEqual(
       result.plan.files.map((file) => file.relativePath).sort(),
       [
-        '.claude/commands/design-mode.md',
+        '.claude/commands/dev-agent.md',
         '.cursor/mcp.json',
-        '.cursor/commands/design-mode.md',
+        '.cursor/commands/dev-agent.md',
         '.mcp.json',
       ].sort(),
     );
@@ -172,12 +172,12 @@ describe('mcp-local guided setup', { concurrency: false, timeout: 15_000 }, () =
     assert.deepEqual(mcp.mcpServers['design-mode'].args, [fs.realpathSync(cliPath)]);
     assert.equal(mcp.mcpServers['design-mode'].type, 'stdio');
     assert.equal(
-      fs.readFileSync(path.join(project, '.claude/commands/design-mode.md'), 'utf8'),
+      fs.readFileSync(path.join(project, '.claude/commands/dev-agent.md'), 'utf8'),
       workflowMarkdown(),
     );
     assert.match(workflowMarkdown(), /wait_for_handoff/);
     assert.match(workflowMarkdown(), /Only if the user chose live rounds/);
-    assert.equal(fs.readFileSync(path.join(project, '.cursor/commands/design-mode.md'), 'utf8'), workflowMarkdown());
+    assert.equal(fs.readFileSync(path.join(project, '.cursor/commands/dev-agent.md'), 'utf8'), workflowMarkdown());
 
     const cursorMcp = JSON.parse(fs.readFileSync(path.join(project, '.cursor/mcp.json'), 'utf8'));
     assert.equal(cursorMcp.mcpServers['design-mode'].args[0], fs.realpathSync(cliPath));

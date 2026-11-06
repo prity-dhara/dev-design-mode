@@ -615,9 +615,9 @@ let mcpAutoConnect = true;
 // Cloud / self-hosted MCP. Mode picks where the extension dials; the
 // other three are only meaningful when mode !== 'local'.
 type McpMode = 'local' | 'cloud' | 'self-hosted';
-let mcpMode: McpMode = 'cloud';
+let mcpMode: McpMode = 'local';
 let mcpCloudToken = '';
-let mcpCloudUrl = 'https://mcp.designmode.app';
+let mcpCloudUrl = '';
 let mcpCloudTenantId = '';
 let mcpCloudRegistering = false;
 let inspectorHoverColor = '#4F9EFF';
@@ -668,10 +668,26 @@ browser.storage?.local?.get?.([
   if (typeof result?.['dm-mcp-port'] === 'number') mcpPort = result['dm-mcp-port'];
   if (typeof result?.['dm-mcp-auto-connect'] === 'boolean') mcpAutoConnect = result['dm-mcp-auto-connect'];
   const savedMcpMode = result?.['dm-mcp-mode'];
-  if (savedMcpMode === 'local' || savedMcpMode === 'cloud' || savedMcpMode === 'self-hosted') mcpMode = savedMcpMode;
+  // Dev Agent currently exposes only Local MCP. Migrate old saved cloud
+  // selections to Local so a hidden mode cannot leave the MCP view offline.
+  mcpMode = 'local';
+  if (savedMcpMode && savedMcpMode !== 'local') {
+    browser.storage?.local?.set?.({ 'dm-mcp-mode': 'local' });
+  }
   if (typeof result?.['dm-mcp-cloud-token'] === 'string') mcpCloudToken = result['dm-mcp-cloud-token'];
   if (typeof result?.['dm-mcp-cloud-url'] === 'string') mcpCloudUrl = result['dm-mcp-cloud-url'];
   if (typeof result?.['dm-mcp-cloud-tenant'] === 'string') mcpCloudTenantId = result['dm-mcp-cloud-tenant'];
+  // Do not silently keep connecting to the upstream hosted relay when a user
+  // opens an older fork's saved settings. Local uses our own companion.
+  if (mcpCloudUrl.replace(/\/$/, '').toLowerCase() === 'https://mcp.designmode.app') {
+    mcpCloudUrl = '';
+    mcpCloudToken = '';
+    mcpCloudTenantId = '';
+    if (mcpMode === 'cloud') mcpMode = 'local';
+    browser.storage?.local?.remove?.(['dm-mcp-cloud-token', 'dm-mcp-cloud-tenant', 'dm-mcp-cloud-url']);
+    browser.storage?.local?.set?.({ 'dm-mcp-mode': mcpMode });
+  }
+
   if (typeof result?.['dm-inspector-hover-color'] === 'string') inspectorHoverColor = result['dm-inspector-hover-color'];
   if (typeof result?.['dm-inspector-select-color'] === 'string') inspectorSelectColor = result['dm-inspector-select-color'];
   if (typeof result?.['dm-overlay-margin-color'] === 'string') overlayMarginColor = result['dm-overlay-margin-color'];
@@ -2239,7 +2255,7 @@ async function sendToAgent(operation = beginInspectorOperation()) {
     feedbackSession = res.supported ? parseFeedbackSession(res.session) : null;
     feedbackSentUntil = Date.now() + 1500;
     setTimeout(() => render(), 1500);
-    showCaptureToast('success', feedbackSession?.state === 'implementing' ? 'Feedback sent. Make your next edits while the agent works.' : 'Staged for your agent — run /design-mode to implement.');
+    showCaptureToast('success', feedbackSession?.state === 'implementing' ? 'Feedback sent. Make your next edits while the agent works.' : 'Staged for your agent — run /dev-agent to implement.');
   } else {
     showCaptureToast('error', 'Could not reach the agent — check the MCP status and retry.');
   }
@@ -6768,7 +6784,7 @@ function mcpStatusDisplay(): { dotStyle: string; textColor: string; label: strin
       detail: isCloud
         ? (mcpCloudToken
             ? 'Cloud relay unreachable. Refresh to retry, or check the server URL + token below.'
-            : 'No cloud token yet. Click Connect to Cloud below.')
+            : 'Cloud is optional and needs your own configured relay. Choose Local for Codex.')
         : 'MCP not running. Start the server with `npm start --prefix packages/mcp-local`, then refresh.',
     };
   }
@@ -6825,7 +6841,6 @@ function renderHeader(): string {
     '<details class="dm-more-dropdown dm-header-more"><summary title="More options" aria-label="More options">' + icon('ellipsis', 17) + '</summary><div class="dm-more-menu">' +
     floatingActions +
     menuButton('help', 'Help', 'helpCircle') +
-    menuButton('contribute', 'Contribute', 'heartHandshake') +
     '</div></details></div>';
 }
 
@@ -6913,7 +6928,7 @@ function renderLiveFeedbackStatus(): string {
   if (mcpMode !== 'local' || !feedbackSession) return '';
   const stopped = feedbackSession.state === 'stopped';
   const label = stopped ? 'Stopped' : feedbackSession.state === 'waiting' ? 'Waiting for feedback' : 'Implementing';
-  const detail = stopped ? 'The extension cannot cancel commands already running in your agent; they may still finish. Run /design-mode again to start a new loop.' : feedbackSession.state === 'waiting' ? 'Make your edits, then Send to your AI agent.' : 'You can keep editing. Send the next round when the agent is waiting.';
+  const detail = stopped ? 'The extension cannot cancel commands already running in your agent; they may still finish. Run /dev-agent again to start a new loop.' : feedbackSession.state === 'waiting' ? 'Make your edits, then Send to your AI agent.' : 'You can keep editing. Send the next round when the agent is waiting.';
   return '<div style="padding:8px 12px 0;display:flex;gap:8px;align-items:center;">' +
     '<div role="status" aria-live="polite" style="flex:1;min-width:0;font-size:10px;line-height:1.5;color:var(--dm-text-secondary);"><strong style="color:var(--dm-text);">Live feedback · ' + label + '</strong><div>' + detail + '</div></div>' +
     (stopped ? '' : '<button data-dm-action="stop-live-feedback" title="End feedback rounds. Commands already running in your agent may still finish." style="padding:6px 9px;border-radius:5px;border:1px solid var(--dm-btn-border);background:var(--dm-btn-bg);color:var(--dm-danger);font:inherit;font-size:11px;cursor:pointer;">Stop</button>') + '</div>';
@@ -6960,7 +6975,7 @@ function renderSendAgentHelpOverlay(): string {
     steps = [
       'Open the <b>MCP page</b> (click the MCP chip up top) and click <b>Copy MCP config</b>.',
       'Paste it into your agent’s MCP settings (Claude Code, Cursor, Windsurf, …) and restart the agent.',
-      'Run ' + code('/design-mode') + ' in the agent — the MCP chip up top turns solid green.',
+      'Run ' + code('/dev-agent') + ' in the agent — the MCP chip up top turns solid green.',
     ];
   } else if (isCloud && mcpCloudToken) {
     intro = 'The cloud relay is unreachable right now.';
@@ -6973,14 +6988,14 @@ function renderSendAgentHelpOverlay(): string {
     steps = [
       'Open the <b>MCP page</b> (click the MCP chip up top) and click <b>Connect to Cloud</b>.',
       'Click <b>Copy MCP config</b> and paste it into your agent’s MCP settings (Claude Code, Cursor, Windsurf, …).',
-      'Restart the agent, then run ' + code('/design-mode') + ' in it.',
+      'Restart the agent, then run ' + code('/dev-agent') + ' in it.',
     ];
   } else {
     intro = 'The local companion server isn’t running. One-time setup:';
     steps = [
       'Register the server with your agent: ' + code('claude mcp add design-mode -- npm start --prefix &lt;repo&gt;/packages/mcp-local'),
       'Start your agent — it launches the server automatically.',
-      'Run ' + code('/design-mode') + ' in the agent.',
+      'Run ' + code('/dev-agent') + ' in the agent.',
     ];
   }
   const stepRows = steps.map((s, i) =>
@@ -7291,7 +7306,7 @@ function renderBuilderPanel(): string {
   const kinds = [
     ['section', 'Section'], ['container', 'Container'], ['div', 'Div'],
     ['heading', 'Heading'], ['paragraph', 'Paragraph'], ['button', 'Button'],
-    ['image', 'Image'], ['card', 'Card'], ['grid', 'Grid'],
+    ['card', 'Card'], ['grid', 'Grid'],
   ];
   const topClasses = builderSiteClasses.slice(0, 130);
   const suggestions = topClasses.map(c =>
@@ -7737,7 +7752,12 @@ function renderDesignTab(): string {
     tbBtn('createLink', '🔗', 'Link the selected text (you\'ll be prompted for URL)') +
     tbBtn('removeFormat', '⨯ fmt', 'Strip all formatting') +
     '</div>';
-  const textField = showTextEdit
+  const textField = showTextEdit && (displayInfo as any).splitText
+    ? '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">' +
+      '<label style="font-size:9px;color:var(--dm-text-muted);text-transform:uppercase;">Animated Text (GSAP / SplitText)</label>' +
+      '<textarea data-dm-split-text class="dm-input" rows="4" style="width:100%;min-height:88px;font:13px/1.5 inherit;line-height:1.5;padding:8px;box-sizing:border-box;resize:vertical;">' + escapeAttr(textVal) + '</textarea>' +
+      '<span style="font-size:10px;color:var(--dm-text-muted);">Edit the whole heading. The animation wrappers are preserved; update the original source and re-split for final responsive line breaks.</span></div>'
+    : showTextEdit
     ? '<div style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px;">' +
       '<label style="font-size:9px;color:var(--dm-text-muted);text-transform:uppercase;letter-spacing:0.4px;">Text Content</label>' +
       richToolbar +
@@ -9849,13 +9869,14 @@ function renderChangesTab(): string {
 
 /* ── Settings View ── */
 // Renders the MCP Server settings card. Three modes: Local (today's
-// localhost server), Cloud (mcp.designmode.app), Self-hosted URL (user's
+// localhost server), Cloud (requires an independently configured relay), Self-hosted URL (user's
 // own Vercel deploy of @design-mode/mcp-cloud). The cloud mode card
 // shows a token chip + copy buttons for the agent's config snippet.
 function renderMcpServerCard(sS: string, sT: string, lS: string, activeBtn: string, inactiveBtn: string): string {
-  const modeBtn = (m: McpMode, label: string) => '<button data-dm-mcp-mode="' + m + '" style="' + (mcpMode === m ? activeBtn : inactiveBtn) + '">' + label + '</button>';
-  const modeRow = '<div style="display:flex;gap:4px;margin-bottom:8px;">' +
-    modeBtn('cloud', 'Cloud') + modeBtn('local', 'Local') + modeBtn('self-hosted', 'Self-hosted') +
+  // Present a single Local indicator instead of Cloud/Self-hosted tabs.
+  // Remote transports remain in code but are intentionally not exposed.
+  const modeRow = '<div style="display:flex;align-items:center;margin-bottom:8px;">' +
+    '<span style="padding:5px 10px;background:var(--dm-accent-bg);border:1px solid var(--dm-accent-border);border-radius:5px;color:var(--dm-text);font-size:10px;font-family:inherit;text-transform:uppercase;">Local MCP</span>' +
     '</div>';
 
   let body = '';
@@ -9880,7 +9901,8 @@ function renderMcpServerCard(sS: string, sT: string, lS: string, activeBtn: stri
 
     if (!hasToken) {
       body = urlField +
-        '<button data-dm-action="mcp-cloud-register" style="margin-top:8px;padding:8px 10px;background:var(--dm-accent-bg);border:1px solid var(--dm-accent-border);border-radius:6px;color:var(--dm-text);cursor:pointer;font-size:10px;font-family:inherit;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;"' + (mcpCloudRegistering ? ' disabled' : '') + '>' + icon('zap', 11) + (mcpCloudRegistering ? ' Connecting…' : ' Connect to Cloud') + '</button>' +
+        (!mcpCloudUrl ? '<div style="font-size:10px;color:var(--dm-text-secondary);line-height:1.5;">No Dev Agent cloud relay is configured. Use Local MCP or deploy your own relay first.</div>' : '') +
+        '<button data-dm-action="mcp-cloud-register" style="margin-top:8px;padding:8px 10px;background:var(--dm-accent-bg);border:1px solid var(--dm-accent-border);border-radius:6px;color:var(--dm-text);cursor:pointer;font-size:10px;font-family:inherit;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;"' + (mcpCloudRegistering || !mcpCloudUrl ? ' disabled' : '') + '>' + icon('zap', 11) + (mcpCloudRegistering ? ' Connecting…' : ' Connect to Cloud') + '</button>' +
         '<div style="font-size:9px;color:var(--dm-text-dimmer);margin-top:6px;line-height:1.4;">A device token is generated on the server. Copy the config, paste it into your agent (Claude Code, Cursor, VS Code, …), restart the agent.</div>';
     } else {
       // One reasonable, IDE-agnostic snippet. The `mcpServers` wrapper +
@@ -9932,7 +9954,7 @@ function changeStatusBadge(s?: ChangeStatus): string {
   return '';
 }
 
-// "Set up your agent" — copies the /design-mode workflow command into your
+// "Set up your agent" — copies the /dev-agent workflow command into your
 // coding tool. The command body is identical across tools (it drives the
 // live MCP tools); only the save path differs, so each row copies the same
 // text and names where to drop it.
@@ -9945,7 +9967,7 @@ function renderAgentCommandCard(sS: string, sT: string, lS: string): string {
     '</div>'
   ).join('');
   return '<div style="' + sS + '"><div style="' + sT + '">Set up your agent</div>' +
-    '<div style="font-size:9px;color:var(--dm-text-dimmer);margin-bottom:8px;line-height:1.4;">Copy the <code style="font-family:SF Mono,monospace;">/design-mode</code> command into your coding tool, then run it after editing. It reads your changes and comments over MCP and resolves them as it works.</div>' +
+    '<div style="font-size:9px;color:var(--dm-text-dimmer);margin-bottom:8px;line-height:1.4;">Copy the <code style="font-family:SF Mono,monospace;">/dev-agent</code> command into your coding tool, then run it after editing. It reads your changes and comments over MCP and resolves them as it works.</div>' +
     '<div style="display:flex;flex-direction:column;gap:8px;">' + rows + '</div></div>';
 }
 
@@ -10192,14 +10214,14 @@ function renderHelpView(): string {
     '<button data-dm-action="show-shortcuts" style="' + secondaryBtn + '">' + icon('keyboard', 12) + ' Keyboard shortcuts</button>' +
     '<div style="' + card + '">' +
     '<p style="margin:0 0 12px 0;font-size:12px;line-height:1.5;color:var(--dm-text-secondary);">Found a bug or want to request a feature? File it on GitHub — please include your Chrome version and repro steps.</p>' +
-    '<a href="https://github.com/SandeepBaskaran/design-mode/issues/new/choose" data-dm-help-target="issues" target="_blank" rel="noopener noreferrer" style="' + primaryBtn + '">Report an issue ' + icon('externalLink', 12) + '</a>' +
+    '<a href="https://github.com/prity-dhara/dev-design-mode/issues/new/choose" data-dm-help-target="issues" target="_blank" rel="noopener noreferrer" style="' + primaryBtn + '">Report an issue ' + icon('externalLink', 12) + '</a>' +
     '<div style="height:8px;"></div>' +
     '<button data-dm-action="copy-diagnostics" style="' + secondaryBtn + '">' + icon('copy', 12) + ' <span data-dm-copy-label>Copy diagnostics</span></button>' +
     '</div>' +
     '<div style="' + card + '"><div style="display:flex;flex-direction:column;gap:8px;">' +
-    '<a href="https://github.com/SandeepBaskaran/design-mode#readme" data-dm-help-target="readme" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">Read the docs ↗</a>' +
-    '<a href="https://github.com/SandeepBaskaran/design-mode/blob/main/PRIVACY.md" data-dm-help-target="privacy" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">Privacy ↗</a>' +
-    '<a href="mailto:hello@sandeepbaskaran.com" data-dm-help-target="email" style="' + linkStyle + '">Security disclosure ↗</a>' +
+    '<a href="https://github.com/prity-dhara/dev-design-mode#readme" data-dm-help-target="readme" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">Read the docs ↗</a>' +
+    '<a href="https://github.com/prity-dhara/dev-design-mode/blob/main/PRIVACY.md" data-dm-help-target="privacy" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">Privacy ↗</a>' +
+    '<a href="https://github.com/prity-dhara/dev-design-mode/security/advisories/new" data-dm-help-target="email" style="' + linkStyle + '">Security disclosure ↗</a>' +
     '</div></div>' +
     '</div>' +
     '<div style="margin-top:16px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Dev Agent v' + extensionVersion() + '</div></div>' +
@@ -10263,70 +10285,12 @@ function renderHoverGuideView(): string {
     '</div>';
 }
 
+// The original project's sponsorship/contribution overlay is intentionally
+// unavailable in Dev Agent. Keep the function as a migration-safe fallback.
 function renderContributeView(): string {
-  const card = 'background:var(--dm-bg-secondary);border:1px solid var(--dm-separator);border-radius:8px;padding:14px;';
-  const primaryBtn = 'display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px 12px;background:var(--dm-text);border:1px solid var(--dm-text);border-radius:6px;color:var(--dm-bg);cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;text-decoration:none;';
-  const rowBtn = 'display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;background:var(--dm-btn-bg);border:1px solid var(--dm-btn-border);border-radius:6px;color:var(--dm-text);cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;text-decoration:none;text-align:left;';
-  const rowIcon = 'display:flex;align-items:center;justify-content:center;color:var(--dm-text-secondary);flex-shrink:0;';
-  const rowText = 'flex:1;';
-  const rowExt = 'color:var(--dm-text-dimmer);display:flex;align-items:center;flex-shrink:0;';
-  const sectionLabel = 'font-size:10px;font-weight:600;letter-spacing:0.6px;color:var(--dm-text-dimmer);text-transform:uppercase;margin:0 0 8px 2px;';
-
-  const row = (iconName: keyof typeof icons, label: string, href: string) =>
-    '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="' + rowBtn + '">' +
-      '<span style="' + rowIcon + '">' + icon(iconName, 14) + '</span>' +
-      '<span style="' + rowText + '">' + label + '</span>' +
-      '<span style="' + rowExt + '">' + icon('externalLink', 11) + '</span>' +
-    '</a>';
-
-  const shareRow =
-    '<button data-dm-action="copy-share-text" style="' + rowBtn + '">' +
-      '<span style="' + rowIcon + '">' + icon('share2', 14) + '</span>' +
-      '<span style="' + rowText + '" data-dm-share-label>Share with your network</span>' +
-      '<span style="' + rowExt + '">' + icon('copy', 11) + '</span>' +
-    '</button>';
-
-  const sponsorBtn =
-    '<a href="https://github.com/sponsors/SandeepBaskaran" target="_blank" rel="noopener noreferrer" style="' + primaryBtn + '">' +
-      icon('heartHandshake', 14) + ' Sponsor on GitHub ' + icon('externalLink', 12) +
-    '</a>';
-
-  return '<div class="dm-overlay-page" style="padding:16px;">' +
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">' +
-    '<button data-dm-action="back-from-contribute" style="background:none;border:none;color:var(--dm-text-secondary);cursor:pointer;display:flex;padding:4px;">' + icon('chevronLeft', 14) + '</button>' +
-    '<span style="font-size:14px;font-weight:600;color:var(--dm-text);">Contribute</span></div>' +
-    '<p style="margin:0 0 18px 2px;font-size:12px;line-height:1.55;color:var(--dm-text-secondary);">Dev Agent is free, forever — and open source. If it’s useful to you, here are a few ways to help.</p>' +
-    '<div style="display:flex;flex-direction:column;gap:16px;">' +
-
-    '<div><div style="' + sectionLabel + '">Spread the word</div>' +
-    '<div style="' + card + '"><div style="display:flex;flex-direction:column;gap:8px;">' +
-    row('star', 'Star the repo on GitHub', 'https://github.com/SandeepBaskaran/design-mode') +
-    (IS_SAFARI ? '' : IS_FIREFOX
-      ? row('messageSquare', 'Review on Firefox Add-ons', 'https://addons.mozilla.org/firefox/addon/design-mode-add-on/')
-      : row('messageSquare', 'Review on the Chrome Web Store', 'https://chromewebstore.google.com/detail/design-mode/ighgobegfcmjagombgnfhgioflinojih')) +
-    row('productHunt', 'Upvote on Product Hunt', 'https://www.producthunt.com/products/design-mode') +
-    shareRow +
-    '</div></div></div>' +
-
-    '<div><div style="' + sectionLabel + '">Help improve it</div>' +
-    '<div style="' + card + '"><div style="display:flex;flex-direction:column;gap:8px;">' +
-    row('alertTriangle', 'Report an issue', 'https://github.com/SandeepBaskaran/design-mode/issues/new/choose') +
-    row('messageCircle', 'Start a discussion', 'https://github.com/SandeepBaskaran/design-mode/discussions') +
-    row('gitPullRequest', 'Open a pull request', 'https://github.com/SandeepBaskaran/design-mode/compare') +
-    '</div></div></div>' +
-
-    '<div><div style="' + sectionLabel + '">Support the project</div>' +
-    '<div style="' + card + '">' +
-    sponsorBtn +
-    '<p style="margin:10px 0 0 0;font-size:11px;line-height:1.5;color:var(--dm-text-secondary);">Helps cover Cloud MCP costs (tool-call limits, infra) so those stay generous for everyone.</p>' +
-    '</div></div>' +
-
-    '</div>' +
-    '<div style="margin-top:18px;text-align:center;"><div style="font-size:10px;color:var(--dm-text-dimmer);">Dev Agent v' + extensionVersion() + '</div></div>' +
-    '</div>';
+  return renderHelpView();
 }
 
-/* ── Phase 1: Render with morphdom ── */
 function renderCaptureToast(): string {
   if (!captureToast) return '';
   const isErr = captureToast.kind === 'error';
@@ -11010,11 +10974,7 @@ function setupDelegation() {
           break;
         }
         case 'copy-share-text': {
-          const payload = IS_SAFARI
-            ? 'I’ve been using Design Mode in Safari Web Inspector to live-edit CSS and send changes to coding agents. Free + open source.\nhttps://designmode.app'
-            : IS_FIREFOX
-            ? 'I’ve been using Design Mode — a Firefox sidebar add-on that lets you live-edit CSS on any page, with MCP support for Claude/Cursor. Free + open source.\nhttps://addons.mozilla.org/firefox/addon/design-mode-add-on/'
-            : 'I’ve been using Design Mode — a Chrome side-panel extension that lets you live-edit CSS on any page, with MCP support for Claude/Cursor. Free + open source.\nhttps://chromewebstore.google.com/detail/design-mode/ighgobegfcmjagombgnfhgioflinojih';
+          const payload = 'I have been using Dev Agent to edit website layouts visually and hand focused changes to a coding agent. Source: https://github.com/prity-dhara/dev-design-mode';
           const flash = (msg: string) => {
             const lbl = document.querySelector('[data-dm-share-label]') as HTMLElement | null;
             if (!lbl) return;
@@ -13975,7 +13935,7 @@ function setupDelegation() {
     }
 
     // Textarea text change
-    const textArea = target.closest<HTMLTextAreaElement>('[data-dm-text]');
+    const textArea = target.closest<HTMLTextAreaElement>('[data-dm-text], [data-dm-split-text]');
     if (textArea) {
       runInspectorAction(applyText(textArea.value));
       return;

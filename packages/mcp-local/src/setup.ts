@@ -25,14 +25,14 @@ export const PROJECT_AGENTS: AgentTarget[] = [
     id: 'claude-code',
     label: 'Claude Code',
     mcpRelative: '.mcp.json',
-    workflowRelative: '.claude/commands/design-mode.md',
+    workflowRelative: '.claude/commands/dev-agent.md',
     includeStdioType: true,
   },
   {
     id: 'cursor',
     label: 'Cursor',
     mcpRelative: '.cursor/mcp.json',
-    workflowRelative: '.cursor/commands/design-mode.md',
+    workflowRelative: '.cursor/commands/dev-agent.md',
     includeStdioType: true,
   },
 ];

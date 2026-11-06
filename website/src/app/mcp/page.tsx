@@ -34,24 +34,24 @@ import {
   mcpClients,
 } from "@/lib/mcp-guide";
 
-const title = "Connect your AI app with MCP | Design Mode";
+const title = "Connect your AI app with MCP | Dev Agent";
 const description =
-  "Set up Design Mode with a compatible AI app. Connect through Cloud, Local or Self-hosted MCP, test safely and read your browser design changes.";
+  "Set up Dev Agent with a compatible AI app. Connect through Cloud, Local or Self-hosted MCP, test safely and read your browser design changes.";
 export const metadata = {
   title: { absolute: title },
   description,
-  alternates: { canonical: "https://designmode.app/mcp" },
+  alternates: { canonical: "/mcp" },
   openGraph: {
     type: "website",
     title,
     description,
-    url: "https://designmode.app/mcp",
+    url: "/mcp",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Design Mode — The visual editor for all your agent’s work",
+        alt: "Dev Agent — The visual editor for all your agent’s work",
       },
     ],
   },
@@ -64,7 +64,7 @@ export const metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Design Mode — The visual editor for all your agent’s work",
+        alt: "Dev Agent — The visual editor for all your agent’s work",
       },
     ],
   },
@@ -221,7 +221,7 @@ export default function McpPage() {
                 <div>
                   <p className="text-base font-semibold">You</p>
                   <p className="mt-2">
-                    What changes are left to complete in Design Mode?
+                    What changes are left to complete in Dev Agent?
                   </p>
                 </div>
                 <div>
@@ -274,18 +274,16 @@ export default function McpPage() {
                 <h3 className="text-2xl font-semibold">
                   Cloud{" "}
                   <span className="text-muted-foreground text-base font-normal">
-                    Default
+                    Not configured
                   </span>
                 </h3>
                 <p className="text-muted-foreground leading-relaxed">
-                  No companion process to run. Open the extension’s MCP page
-                  from its header chip, keep Cloud selected and create an
-                  anonymous credential.
+                  Cloud requires a relay you deploy and configure yourself.
+                  Dev Agent does not ship with an upstream hosted Cloud account.
                 </p>
                 <p className="text-muted-foreground leading-relaxed">
-                  Pair the agent using the same bearer token. No Design Mode
-                  account or subscription verification; this is not an OAuth
-                  sign-in flow.
+                  For initial testing, choose Local instead. It requires no cloud token
+                  and uses the Dev Agent MCP companion.
                 </p>
               </CardContent>
             </Card>
@@ -295,7 +293,7 @@ export default function McpPage() {
                 <h3 className="text-2xl font-semibold">Local</h3>
                 <p className="text-muted-foreground leading-relaxed">
                   Your MCP client starts the companion over stdio. It talks to
-                  the extension on localhost, with no Design Mode relay traffic.
+                  the extension on localhost, with no Dev Agent relay traffic.
                 </p>
                 <p className="text-muted-foreground leading-relaxed">
                   Requires a local repository checkout and Node.js. Select Local
@@ -319,12 +317,11 @@ export default function McpPage() {
               </CardContent>
             </Card>
           </div>
-          <p className="mt-8 font-medium">Cloud endpoint · Streamable HTTP</p>
-          <Snippet>{"https://mcp.designmode.app/mcp"}</Snippet>
+          <p className="mt-8 font-medium">Optional private relay endpoint · Streamable HTTP</p>
+          <Snippet>{"https://your-own-relay.example/mcp"}</Snippet>
           <p className="text-muted-foreground mt-4">
-            Use the apex host and the /mcp path. The extension’s event-stream
-            URL is not the agent endpoint. Keep bearer tokens out of chat,
-            screenshots, shell history and committed configuration.
+            This is an example only. Deploy and configure your own relay before using
+            the Cloud or Self-hosted options. Never reuse upstream credentials.
           </p>
           <Accordion type="single" collapsible className="mt-8">
             <AccordionItem value="local">
@@ -335,7 +332,7 @@ export default function McpPage() {
                 <p>
                   Review and clone the{" "}
                   <a
-                    href="https://github.com/SandeepBaskaran/design-mode"
+                    href="https://github.com/prity-dhara/dev-design-mode"
                     className="underline underline-offset-4"
                   >
                     source repository
@@ -346,14 +343,14 @@ export default function McpPage() {
                 </p>
                 <Snippet>
                   {
-                    "npm start --prefix /absolute/path/to/design-mode/packages/mcp-local"
+                    "npm start --prefix /absolute/path/to/dev-design-mode/packages/mcp-local"
                   }
                 </Snippet>
                 <p className="mt-4">
                   For a stdio JSON entry, use command <code>npm</code> and args{" "}
                   <code>
                     [&quot;start&quot;, &quot;--prefix&quot;,
-                    &quot;/absolute/path/to/design-mode/packages/mcp-local&quot;]
+                    &quot;/absolute/path/to/dev-design-mode/packages/mcp-local&quot;]
                   </code>
                   . The client owns this process. The published agent CLI is{" "}
                   <code>@designmode-app/cli</code> (<code>designmode-app</code>
@@ -372,7 +369,7 @@ export default function McpPage() {
                 <p>
                   Deploy packages/mcp-cloud with Redis using its{" "}
                   <a
-                    href="https://github.com/SandeepBaskaran/design-mode/tree/main/packages/mcp-cloud"
+                    href="https://github.com/prity-dhara/dev-design-mode/tree/main/packages/mcp-cloud"
                     className="underline underline-offset-4"
                   >
                     deployment guide
@@ -411,10 +408,9 @@ export default function McpPage() {
             Configure your AI app
           </h2>
           <p className="text-muted-foreground mt-6 max-w-3xl text-base leading-relaxed">
-            These Cloud examples use the client’s own configuration format.
-            Merge the entry—do not replace other servers. Enter your token
-            locally using a protected input or a securely supplied environment
-            variable.
+            These examples use the Dev Agent Local MCP server. Build the local
+            companion, replace the sample CLI path with the absolute path on
+            your computer, and preserve other configured MCP servers.
           </p>
           <Accordion
             type="single"
@@ -607,7 +603,7 @@ export default function McpPage() {
               Give your agent the workflow
             </h2>
             <p className="text-muted-foreground mt-6 max-w-3xl text-base leading-relaxed">
-              The Design Mode agent skill covers setup, safe connection checks
+              The Dev Agent agent skill covers setup, safe connection checks
               and a scoped design-to-code workflow. Download the Markdown and
               follow your app’s skill-install instructions, or ask a capable
               agent to read it. Reading a skill does not install an MCP
@@ -646,7 +642,7 @@ export default function McpPage() {
               remains available separately.
             </p>
             <p className="text-muted-foreground mt-8 text-base">
-              Local keeps Design Mode MCP traffic on your machine. Cloud and
+              Local keeps Dev Agent MCP traffic on your machine. Cloud and
               Self-hosted relay page data; queue expiry is best-effort.{" "}
               <Link href="/privacy" className="underline underline-offset-4">
                 Read the privacy disclosure →

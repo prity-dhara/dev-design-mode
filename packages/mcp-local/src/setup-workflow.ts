@@ -1,15 +1,15 @@
 // Mirrored for the standalone Node build; prepublish verifies this against the panel workflow.
 export const SETUP_WORKFLOW_MARKDOWN = `---
-description: Apply the user's Design Mode edits and resolve their comments
+description: Apply the user's Dev Agent edits and resolve their comments
 ---
 
-# Design Mode
+# Dev Agent
 
-Turn the visual edits and comments the user made in the Design Mode browser
-extension into real code changes. Design Mode exposes these over its MCP
+Turn the visual edits and comments the user made in the Dev Agent browser
+extension into real code changes. Dev Agent exposes these over its MCP
 server — drive them live; do not look for task files on disk.
 
-## Tools (Design Mode MCP server)
+## Tools (Dev Agent MCP server)
 - \`get_session_summary\` — health check; confirm the extension is connected.
 - \`get_focused_changes\` — preferred first read: compact, unresolved style/text/DOM edits, token changes and comments with stable IDs. Optional \`routeKey\` narrows to one page.
 - \`locate_react_source\` — verify JSX/TSX file candidates in a local React checkout using \`projectRoot\`, optional \`componentName\` and \`sourceHint\`. A match is a hint, not proof of DOM ownership.
@@ -38,7 +38,7 @@ server — drive them live; do not look for task files on disk.
 
 ## Workflow
 1. Call \`get_session_summary\`. If the extension isn't connected, ask the
-   user to open the Design Mode side panel, then stop.
+   user to open the Dev Agent side panel, then stop.
 2. Ask whether the user wants one pass or live feedback rounds. Live rounds
    require the Local \`wait_for_handoff\` tool. For live rounds, select the
    exact \`pageUrl\` from the session summary (ask if ambiguous), call

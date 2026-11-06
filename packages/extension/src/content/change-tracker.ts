@@ -4,6 +4,7 @@
 // ============================================================
 
 import { getElementById, generateSelector, describeElement, getComputedStyleSubset, reserveIdsAtLeast } from './helpers';
+import { isSplitTextHost, previewSplitText, captureSplitTextSegments, restoreSplitTextSegments } from './split-text';
 import { getSourceLocation } from './source-detection';
 import { authoredTokenValueFor, bumpStyleGen } from './token-engine';
 import { DEFAULT_WS_PORT, DATA_ATTR, classifyBreakpoint, type Breakpoint } from '../shared';
@@ -58,6 +59,9 @@ export interface TextChange {
   // When true, oldText/newText carry HTML (innerHTML); revert paths must
   // use el.innerHTML, not el.textContent. Set by applyHtmlChange.
   isHtml?: boolean;
+  // Animated headings edit as one text value while retaining GSAP wrappers.
+  isSplitText?: boolean;
+  splitOriginalSegments?: string[];
   attributeName?: string;
   status?: ChangeStatus;
   viewportWidth?: number;
@@ -640,6 +644,8 @@ export function switchActiveRoute(): boolean {
       else element.removeAttribute(change.attributeName);
     } else if (change.isHtml) {
       if (element.innerHTML === change.newText) element.innerHTML = restoreRichTextHtml(element, change.oldText);
+    } else if (change.isSplitText && change.splitOriginalSegments && element.textContent === change.newText) {
+      restoreSplitTextSegments(element, change.splitOriginalSegments);
     } else if (element.textContent === change.newText) element.textContent = change.oldText;
   }
   routeTextTargets.clear();
@@ -782,6 +788,7 @@ export function applyChangesPayload(input: { styleChanges: StyleChange[]; textCh
       if (c.attributeName) {
         if (c.newText) el.setAttribute(c.attributeName, c.newText); else el.removeAttribute(c.attributeName);
       } else if (c.isHtml) el.innerHTML = c.newText;
+      else if (c.isSplitText && isSplitTextHost(el)) previewSplitText(el, c.newText);
       else el.textContent = c.newText;
     } catch {}
   }
@@ -1154,7 +1161,11 @@ export function applyTextChange(
   const el = getElementById(elementId);
   if (!el) return null;
   const priorText = el.textContent || '';
-  el.textContent = text;
+  const split = isSplitTextHost(el);
+  const existing = textChanges.find(c => c.elementId === elementId && !c.attributeName);
+  const splitOriginalSegments = existing?.splitOriginalSegments || (split ? captureSplitTextSegments(el) : undefined);
+  if (split) previewSplitText(el, text);
+  else el.textContent = text;
   // Dedup per element (mirrors applyStyleChange): one TextChange row per
   // element, preserving the ORIGINAL oldText. Returning to that original
   // drops the row — this is what makes undo step cleanly back to plain
@@ -1163,6 +1174,7 @@ export function applyTextChange(
   if (existingIdx !== -1) {
     const existing = textChanges[existingIdx];
     if (text === existing.oldText) {
+      if (existing.isSplitText && existing.splitOriginalSegments) restoreSplitTextSegments(el, existing.splitOriginalSegments);
       textChanges.splice(existingIdx, 1);
       persistSession();
       if (refreshPanel) refreshPanel();
@@ -1179,6 +1191,7 @@ export function applyTextChange(
     id: crypto.randomUUID(), elementId, selector: generateSelector(el),
     label: describeElement(el),
     oldText: priorText, newText: text, timestamp: Date.now(),
+    ...(split ? { isSplitText: true, splitOriginalSegments } : {}),
     ...bpMeta(),
   };
   textChanges.push(change);

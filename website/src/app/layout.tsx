@@ -21,17 +21,17 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://designmode.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
   title: {
-    default: "Design Mode — Browser visual editor for AI coding agents",
-    template: "%s | Design Mode",
+    default: "Dev Agent — Browser visual editor for AI coding agents",
+    template: "%s | Dev Agent",
   },
   description:
     "Edit a live webpage visually in Chrome, Firefox or Safari, capture the exact changes, and send them to Claude Code, Cursor or another MCP-compatible coding agent.",
-  applicationName: "Design Mode",
+  applicationName: "Dev Agent",
   category: "Developer Tools",
   keywords: [
-    "Design Mode",
+    "Dev Agent",
     "Chrome extension",
     "Firefox add-on",
     "Firefox extension",
@@ -70,37 +70,33 @@ export const metadata: Metadata = {
     "browser design surface",
     "side panel design editor",
   ],
-  authors: [{ name: "Sandeep Baskaran", url: "https://sandeepbaskaran.com" }],
-  creator: "Sandeep Baskaran",
-  publisher: "Sandeep Baskaran",
+  publisher: "Dev Agent",
 
   openGraph: {
     type: "website",
     locale: "en_US",
-    title: "Design Mode — Browser visual editor for AI coding agents",
+    title: "Dev Agent — Browser visual editor for AI coding agents",
     description:
       "Edit a live webpage visually, capture the exact changes, and send them to Claude Code, Cursor or another MCP-compatible coding agent.",
-    siteName: "Design Mode",
-    url: "https://designmode.app",
+    siteName: "Dev Agent",
+    url: "/",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Design Mode — The visual editor for all your agent’s work",
+        alt: "Dev Agent — The visual editor for all your agent’s work",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    creator: "@sandeepbaskaran",
-    site: "@sandeepbaskaran",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Design Mode — The visual editor for all your agent’s work",
+        alt: "Dev Agent — The visual editor for all your agent’s work",
       },
     ],
   },

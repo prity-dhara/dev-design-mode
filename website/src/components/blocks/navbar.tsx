@@ -29,7 +29,7 @@ const ITEMS = [
   { label: "Blog", href: "/blog" },
 ];
 
-const REPO_URL = withNavRef("https://github.com/SandeepBaskaran/design-mode");
+const REPO_URL = withNavRef("https://github.com/prity-dhara/dev-design-mode");
 
 type GtagFn = (
   command: "event",
@@ -74,7 +74,7 @@ export const Navbar = () => {
             className="size-6"
           />
           <span className="font-display text-foreground text-base font-semibold tracking-tight">
-            Design Mode
+            Dev Agent
           </span>
         </Link>
 
@@ -104,7 +104,7 @@ export const Navbar = () => {
               href={REPO_URL}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Design Mode source code on GitHub"
+              aria-label="Dev Agent source code on GitHub"
               onClick={() => trackCtaClick("github")}
             >
               <GithubMark size={16} />
