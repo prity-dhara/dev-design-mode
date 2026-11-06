@@ -7350,12 +7350,20 @@ function renderDesignTab(): string {
   // would happen instead of hiding the field entirely.
   const directTextTags = ['p','h1','h2','h3','h4','h5','h6','span','a','li','td','th','label','button','strong','em','b','i','small','mark','figcaption','caption','dt','dd','abbr','cite','q','code','pre','blockquote'];
   const isTextTag = directTextTags.includes(tag);
-  // Webflow can use <div class="text-size-regular"> as its actual copy
-  // element. The inspector confirms that its descendants are only inline
-  // text markup (or GSAP SplitText); don't turn layout cards into editors.
+  const nestedTargets = Array.isArray((displayInfo as any).textTargets)
+    ? (displayInfo as any).textTargets as Array<{ id: string; tagName: string; preview: string; text: string; splitText: boolean; plainText: boolean }>
+    : [];
+  // A Webflow banner wrapper with exactly one logical GSAP text block (or
+  // one plain text child) should expose the child's editor immediately.
+  // Edits are addressed to that child's ID, never to the wrapper's innerHTML.
+  const singleTextTarget = !isTextTag && !(displayInfo as any).splitText &&
+    !(displayInfo as any).editableTextHost && nestedTargets.length === 1 &&
+    (nestedTargets[0].splitText || nestedTargets[0].plainText)
+    ? nestedTargets[0] : null;
   const showTextEdit = (isTextTag || !!(displayInfo as any).splitText ||
-    !!(displayInfo as any).editableTextHost) && !!displayInfo.textContent;
-  const textVal = displayInfo.textContent || '';
+    !!(displayInfo as any).editableTextHost || !!singleTextTarget) &&
+    !!(singleTextTarget?.text || displayInfo.textContent);
+  const textVal = singleTextTarget?.text ?? displayInfo.textContent ?? '';
   // The rich-text editor preserves HTML structure (headings/links/spans),
   // so the old "saves will flatten children" warning no longer applies.
   const textWarning = '';
@@ -7371,8 +7379,8 @@ function renderDesignTab(): string {
   // browser.tabs / browser.scripting / browser.storage. Only structural
   // formatting tags enter the editor; page-owned nodes become inert
   // placeholders and only explicitly safe attributes survive.
-  const rawInner = (displayInfo as any).innerHTML;
-  const splitAnimatedText = !!(displayInfo as any).splitText;
+  const rawInner = singleTextTarget ? '' : (displayInfo as any).innerHTML;
+  const splitAnimatedText = !!(displayInfo as any).splitText || !!singleTextTarget?.splitText;
   // SplitText wrappers are animation output, not authored rich-text markup.
   // Show the original full sentence as one editable value.
   const richHtml = splitAnimatedText ? escapeAttr(textVal) : rawInner ? sanitizeRichTextHtml(rawInner) : escapeAttr(textVal);
@@ -7407,9 +7415,9 @@ function renderDesignTab(): string {
     '</div>';
   const textField = showTextEdit
     ? '<div style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px;">' +
-      '<label style="font-size:9px;color:var(--dm-text-muted);text-transform:uppercase;letter-spacing:0.4px;">Text Content</label>' +
-      (splitAnimatedText ? '' : richToolbar) +
-      '<div data-dm-richtext data-dm-element-id="' + escapeAttr(displayInfo.id || '') + '" contenteditable="true" class="dm-input" style="width:100%;min-height:88px;font-family:inherit;font-size:13px;line-height:1.5;padding:8px;box-sizing:border-box;outline:none;overflow-y:auto;max-height:280px;" spellcheck="false">' + richHtml + '</div>' +
+      '<label style="font-size:9px;color:var(--dm-text-muted);text-transform:uppercase;letter-spacing:0.4px;">Text Content' + (singleTextTarget ? ' · inner &lt;' + escapeAttr(singleTextTarget.tagName) + '&gt;' : '') + '</label>' +
+      (splitAnimatedText || !!singleTextTarget ? '' : richToolbar) +
+      '<div data-dm-richtext data-dm-element-id="' + escapeAttr(singleTextTarget?.id || displayInfo.id || '') + '" contenteditable="true" class="dm-input" style="width:100%;min-height:88px;font-family:inherit;font-size:13px;line-height:1.5;padding:8px;box-sizing:border-box;outline:none;overflow-y:auto;max-height:280px;" spellcheck="false">' + richHtml + '</div>' +
       (splitAnimatedText
         ? '<span style="font-size:10px;color:var(--dm-text-muted);">GSAP SplitText · source text is editable as one element. Live animation changes only if the page exposes its SplitText instance and rebuild callback; otherwise the change is exported for implementation.</span>' +
           '<div style="font-size:10px;overflow-wrap:anywhere;color:var(--dm-text-muted);margin-top:3px;">Source: ' + escapeAttr((displayInfo as any).sourceHint || '') + '</div>'
@@ -7421,9 +7429,7 @@ function renderDesignTab(): string {
   // Selecting a Webflow layout wrapper should expose its authored text
   // blocks as explicit targets. Never edit the parent wrapper's aggregated
   // text or turn a reviewer comment into an actual text change.
-  const innerTextTargets = !showTextEdit && Array.isArray((displayInfo as any).textTargets)
-    ? (displayInfo as any).textTargets as Array<{ id: string; tagName: string; preview: string }>
-    : [];
+  const innerTextTargets = !showTextEdit ? nestedTargets : [];
   const innerTextSection = innerTextTargets.length
     ? '<div style="display:flex;flex-direction:column;gap:6px;">' +
       '<div style="font-size:10px;color:var(--dm-text-muted);">Choose the original text element to edit. GSAP words are grouped automatically.</div>' +
