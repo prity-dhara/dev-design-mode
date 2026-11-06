@@ -77,9 +77,14 @@ export function isSplitTextRoot(el: HTMLElement): boolean {
 
 /** Only generated fragments, never the authored heading or paragraph. */
 export function isLogicalSplitWrapper(el: HTMLElement): boolean {
-  return isGeneratedSplitWrapper(el) ||
-    (classes(el).some(name => genericClass.test(name)) &&
-      !!splitTextRoot(el));
+  if (isGeneratedSplitWrapper(el)) return true;
+  // Custom Webflow span wrappers often use arbitrary classes and inline
+  // animation styles. Hide only those that belong to a confirmed repeated
+  // text-only source host; keep genuine authored spans elsewhere.
+  if (el.tagName === 'SPAN' && el.parentElement &&
+      isRepeatedTextSpanHost(el.parentElement)) return true;
+  return classes(el).some(name => genericClass.test(name)) &&
+    !!splitTextRoot(el);
 }
 
 export function splitTextRoot(target: HTMLElement): HTMLElement | null {
