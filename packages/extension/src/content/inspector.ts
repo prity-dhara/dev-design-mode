@@ -12,7 +12,7 @@ import { baseCursor, restoreBaseCursor } from './custom-cursor';
 import { measureChildGap } from './child-gap';
 import type { ElementInfo as SharedElementInfo } from '@shared/types';
 import { splitTextRoot, isSplitTextRoot, splitTextValue, splitTextSourceHint } from './split-text';
-import { isEditableTextHost } from './editable-text-host';
+import { isEditableTextHost, findEditableTextDescendants } from './editable-text-host';
 
 export type IconInfo = { library: string; name: string };
 
@@ -91,25 +91,21 @@ function detectIconInfo(el: HTMLElement): IconInfo | undefined {
 // targets instead of converting the whole card/section into one text field.
 // Never guess between multiple paragraphs or include generated GSAP spans.
 function collectInnerTextTargets(el: HTMLElement): Array<{ id: string; tagName: string; preview: string; text: string; splitText: boolean; plainText: boolean }> {
-  if (['HTML', 'BODY'].includes(el.tagName)) return [];
+  if (['HTML','BODY'].includes(el.tagName)) return [];
   if (isSplitTextRoot(el) || isEditableTextHost(el)) return [];
-  const descendants = Array.from(el.querySelectorAll<HTMLElement>(
-    'h1,h2,h3,h4,h5,h6,p,blockquote,li,figcaption,div'
-  ));
-  if (descendants.length > 120) return []; // Avoid large page-level containers.
+  const candidates = findEditableTextDescendants(el);
   const targets: Array<{ id: string; tagName: string; preview: string; text: string; splitText: boolean; plainText: boolean }> = [];
-  for (const child of descendants) {
-    if (!child.isConnected || (!isSplitTextRoot(child) && !isEditableTextHost(child) &&
-      !/^(H[1-6]|P|BLOCKQUOTE|LI|FIGCAPTION)$/.test(child.tagName))) continue;
-    if (targets.some(item => item.id === child.dataset.dmId)) continue;
-    const label = (isSplitTextRoot(child) ? splitTextValue(child) : child.textContent || '').trim();
-    if (!label) continue;
+  for (const child of candidates) {
+    if (!child.isConnected) continue;
+    const isSplit = isSplitTextRoot(child);
+    const value = (isSplit ? splitTextValue(child) : child.textContent || '').trim();
+    if (!value) continue;
     targets.push({
       id: getOrAssignId(child),
       tagName: child.tagName.toLowerCase(),
-      preview: label.replace(/\s+/g, ' ').slice(0, 75),
-      text: label.slice(0, 10000),
-      splitText: isSplitTextRoot(child),
+      preview: value.replace(/\s+/g, ' ').slice(0, 75),
+      text: value.slice(0, 10_000),
+      splitText: isSplit,
       plainText: child.children.length === 0,
     });
     if (targets.length >= 8) break;
