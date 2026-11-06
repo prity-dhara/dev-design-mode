@@ -5,23 +5,26 @@ import { canPreviewSplitText } from './split-text-preview.ts';
 type Fake = {
   tagName: string;
   classList: Set<string>;
+  parentElement: Fake | null;
   children: Fake[];
   childNodes: Array<{ nodeType: number; textContent: string }>;
   textContent: string;
   hasAttribute: (n: string) => boolean;
   getAttribute: (n: string) => string | null;
+  querySelector: (selector: string) => Fake | null;
   querySelectorAll: (selector: string) => Fake[];
 };
 function fake(tag: string, classes: string[], text: string): Fake {
   const el: Fake = {
-    tagName: tag, classList: new Set(classes), children: [],
+    tagName: tag, classList: new Set(classes), parentElement: null, children: [],
     childNodes: [], textContent: text,
     hasAttribute: () => false, getAttribute: () => null,
-    querySelectorAll: () => [],
+    querySelector: () => null, querySelectorAll: () => [],
   };
   return el;
 }
 function append(parent: Fake, ...children: Fake[]) {
+  children.forEach(child => { child.parentElement = parent; });
   parent.children.push(...children);
   parent.childNodes.push(...children.map(() => ({ nodeType: 1, textContent: '' })));
   parent.querySelectorAll = () => children.flatMap(child =>
@@ -34,6 +37,13 @@ describe('reversible GSAP static preview safety', () => {
     const mask2 = fake('SPAN', ['gsap_split_word-mask'], 'world');
     append(heading, mask1, mask2);
     assert.equal(canPreviewSplitText(heading as unknown as HTMLElement), true);
+  });
+  it('previews one logical source when custom styled spans have no GSAP class names', () => {
+    const paragraph = fake('DIV', ['text-size-regular'], 'Invest globally from India');
+    const words = ['Invest', 'globally', 'from', 'India'].map(word =>
+      fake('SPAN', ['custom-animation-word'], word));
+    append(paragraph, ...words);
+    assert.equal(canPreviewSplitText(paragraph as unknown as HTMLElement), true);
   });
   it('never hides authored links or media mixed with split wrappers', () => {
     const heading = fake('DIV', ['text-size-regular'], 'Hello world');
