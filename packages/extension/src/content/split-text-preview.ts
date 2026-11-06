@@ -3,16 +3,15 @@
 // extension-owned CSS temporarily hides ONLY generated direct children and
 // shows the edited source copy as an inheriting ::before pseudo-element.
 // Disabling Design Mode removes the attribute and stylesheet immediately.
-import { isSplitTextRoot, isGeneratedSplitWrapper } from './split-text';
+import { isSplitTextRoot, isLogicalSplitWrapper } from './split-text';
 
 const ATTR = 'data-dm-splittext-preview';
 const STYLE_ID = 'dm-splittext-preview-styles';
 const ACTIVE = new Set<HTMLElement>();
-const GENERIC = /^(?:line|lines|word|words|char|chars)$/;
-
 function isGeneratedPart(el: HTMLElement): boolean {
-  return isGeneratedSplitWrapper(el) ||
-    Array.from(el.classList).some(c => GENERIC.test(c));
+  // Use the same guarded detection as selection/Layers, including a repeated
+  // run of custom styled spans with no .word/.char class names.
+  return isLogicalSplitWrapper(el);
 }
 
 export function canPreviewSplitText(el: HTMLElement): boolean {
