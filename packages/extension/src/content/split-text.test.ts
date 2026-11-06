@@ -6,23 +6,32 @@ type FakeEl = {
   tagName: string;
   classList: Set<string>;
   parentElement: FakeEl | null;
+  children: FakeEl[];
   textContent: string;
   getAttribute: (name: string) => string | null;
   hasAttribute: (name: string) => boolean;
+  querySelector: (selector: string) => FakeEl | null;
   querySelectorAll: (selector: string) => FakeEl[];
 };
 function node(tagName: string, classes: string[] = [], text = '', attrs: Record<string, string> = {}): FakeEl {
   const el: FakeEl = {
-    tagName, classList: new Set(classes), parentElement: null, textContent: text,
+    tagName, classList: new Set(classes), parentElement: null, children: [], textContent: text,
     getAttribute: name => attrs[name] ?? null,
     hasAttribute: name => Object.hasOwn(attrs, name),
-    querySelectorAll: () => [],
+    querySelector: selector => el.querySelectorAll(selector)[0] ?? null,
+    querySelectorAll: selector => {
+      const all: FakeEl[] = [];
+      const collect = (p: FakeEl) => { for (const child of p.children) { all.push(child); collect(child); } };
+      collect(el);
+      if (selector === '[aria-hidden="true"]') return all.filter(p => p.getAttribute('aria-hidden') === 'true');
+      return all;
+    },
   };
   return el;
 }
 function children(root: FakeEl, parts: FakeEl[]) {
+  root.children = parts;
   parts.forEach(part => { part.parentElement = root; });
-  root.querySelectorAll = () => parts;
 }
 describe('animated split text selection', () => {
   it('selects the original heading when clicking a generated GSAP word', () => {
@@ -46,5 +55,31 @@ describe('animated split text selection', () => {
     const second = node('DIV', ['line'], 'Second');
     children(heading, [first, second]);
     assert.equal(splitTextRoot(second as unknown as HTMLElement), heading);
+  });
+  it('recognizes nested Webflow gsap_split_word-mask > gsap_split_word wrappers', () => {
+    const paragraph = node('DIV', ['text-size-regular'], 'GalentAI builds a context graph');
+    const firstMask = node('SPAN', ['gsap_split_word-mask'], 'GalentAI');
+    const firstWord = node('SPAN', ['gsap_split_word'], 'GalentAI');
+    const secondMask = node('SPAN', ['gsap_split_word-mask'], 'builds');
+    const secondWord = node('SPAN', ['gsap_split_word'], 'builds');
+    const thirdMask = node('SPAN', ['gsap_split_word-mask'], 'a');
+    const thirdWord = node('SPAN', ['gsap_split_word'], 'a');
+    children(firstMask, [firstWord]);
+    children(secondMask, [secondWord]);
+    children(thirdMask, [thirdWord]);
+    children(paragraph, [firstMask, secondMask, thirdMask]);
+    const container = node('DIV', ['home-banner_box'], 'Other page content');
+    children(container, [paragraph]);
+    assert.equal(isSplitTextRoot(paragraph as unknown as HTMLElement), true);
+    assert.equal(isSplitTextRoot(container as unknown as HTMLElement), false);
+    assert.equal(splitTextRoot(secondWord as unknown as HTMLElement), paragraph);
+    assert.equal(splitTextValue(paragraph as unknown as HTMLElement), 'GalentAI builds a context graph');
+  });
+  it('reconstructs word boundaries if a custom splitter removed whitespace', () => {
+    const paragraph = node('P', [], 'Helloworld');
+    const one = node('SPAN', ['gsap_split_word'], 'Hello');
+    const two = node('SPAN', ['gsap_split_word'], 'world');
+    children(paragraph, [one, two]);
+    assert.equal(splitTextValue(paragraph as unknown as HTMLElement), 'Hello world');
   });
 });
