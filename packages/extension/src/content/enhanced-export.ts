@@ -276,7 +276,10 @@ function compactSelector(elementId: string | undefined, recorded: string, explic
       child.classList?.contains(classes[0]));
     const index = siblings.indexOf(el) + 1;
     const parentSelector = compactSelectorForParent(parent);
-    if (index > 0 && parentSelector) return parentSelector + ' > .' + CSS.escape(classes[0]) + ' (' + index + ' of ' + siblings.length + ')';
+    if (index > 0 && parentSelector) {
+      const childPosition = Array.from(parent.children).indexOf(el) + 1;
+      return parentSelector + ' > .' + CSS.escape(classes[0]) + ':nth-child(' + childPosition + ')';
+    }
   }
   return recorded || generateSelector(el);
 }
@@ -430,12 +433,5 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
 
 // ── GitHub issue body — same content with a heavier preamble ──
 export function exportGitHubIssueBody(): string {
-  const lines: string[] = [];
-  lines.push(`## Visual changes required`);
-  lines.push(``);
-  lines.push(`**Page:** ${document.title}`);
-  lines.push(`**URL:** ${window.location.href}`);
-  lines.push(``);
-  lines.push(exportMarkdown());
-  return lines.join('\n');
+  return exportMarkdown();
 }
