@@ -89,7 +89,7 @@ export function buildDomTree(root: HTMLElement = document.body): DomNode[] {
     //   • Open shadow roots → walked as siblings of the host's normal children.
     //   • Same-origin iframes → walked as siblings, prefixed with their own iframe node.
     //   • CSS ::before / ::after → virtual children when their `content` is set.
-    const childCount = node.children.length +
+    const childCount = Array.from(node.children).filter(child => !isGeneratedSplitWrapper(child as HTMLElement)).length +
       (node.shadowRoot ? 1 : 0) +
       (node.tagName === 'IFRAME' ? 1 : 0) +
       (pseudoHasContent(node, '::before') ? 1 : 0) +
