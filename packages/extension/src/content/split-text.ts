@@ -13,12 +13,11 @@ function splitPart(el: HTMLElement): boolean {
 function matchesClass(el: HTMLElement, pattern: RegExp): boolean {
   return Array.from(el.classList).some(name => pattern.test(name));
 }
-function hasSplitPart(el: HTMLElement): boolean {
-  return splitPart(el) || Array.from(el.querySelectorAll<HTMLElement>('*')).some(splitPart);
-}
 function directGroups(el: HTMLElement): HTMLElement[] {
+  // Require generated wrappers as direct children. An outer section with a
+  // nested SplitText heading must NEVER be flattened as a single string.
   return Array.from(el.children).filter((child): child is HTMLElement =>
-    hasSplitPart(child as HTMLElement));
+    splitPart(child as HTMLElement));
 }
 export function isSplitTextRoot(el: HTMLElement): boolean {
   if (splitPart(el)) return false; // The generated wrapper itself is never the editable host.
