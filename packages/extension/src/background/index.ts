@@ -333,6 +333,65 @@ async function openRoute(tabId: number | null, url: unknown): Promise<OpenRouteR
   }
 }
 
+/**
+ * MAIN-world SplitText edit bridge. A page must explicitly register the
+ * instance and its animation rebuild callback:
+ *
+ * window.__designModeSplitTextRegistry = new WeakMap();
+ * window.__designModeSplitTextRegistry.set(heading, {
+ *   split, SplitText, options, rebuildAnimation(nextSplit) { ... }
+ * });
+ *
+ * Most sites do not expose the instance. In that case this function does
+ * NOTHING to the DOM and returns source-only to the inspector.
+ *
+ * Self-contained: chrome.scripting.executeScript serializes this function
+ * into the page's MAIN world (isolated content scripts cannot see GSAP vars).
+ */
+async function updateRegisteredSplitTextInPage(elementId: string, value: string): Promise<{ ok: boolean; reason: string }> {
+  if (!/^dm-\\d+$/.test(elementId) || value.length > 100_000) return { ok: false, reason: 'invalid-request' };
+  const el = document.querySelector<HTMLElement>(`[data-dm-id="${elementId}"]`);
+  if (!el) return { ok: false, reason: 'missing-parent' };
+  const page = window as typeof window & {
+    __designModeSplitTextRegistry?: WeakMap<HTMLElement, any>;
+  };
+  const registered = page.__designModeSplitTextRegistry?.get(el);
+  const entry = registered && typeof registered === 'object' ? registered : null;
+  const split = entry?.split;
+  const rebuild = entry?.rebuildAnimation;
+  const Ctor = entry?.SplitText || (window as any).SplitText || (window as any).gsap?.plugins?.SplitText;
+  const options = entry?.options || split?.vars;
+  // Re-creating a SplitText instance is not enough to reproduce its GSAP
+  // timeline. Require a page-provided animation rebuild function.
+  if (!split || typeof split.revert !== 'function' ||
+      typeof rebuild !== 'function' || !Ctor || !options) {
+    return { ok: false, reason: 'instance-or-rebuild-unavailable' };
+  }
+  // Preserve the exact nodes/attributes for recovery when a page callback
+  // fails. Do not clone the generated spans: the running timeline references
+  // their identities.
+  const priorNodes = Array.from(el.childNodes);
+  const priorAttrs = Array.from(el.attributes).map(attr => [attr.name, attr.value] as const);
+  try {
+    split.revert();
+    el.textContent = value;
+    const newSplit = typeof Ctor.create === 'function' ?
+      Ctor.create(el, options) : new Ctor(el, options);
+    await rebuild(newSplit, el);
+    entry.split = newSplit;
+    return { ok: true, reason: 'rebuilt' };
+  } catch {
+    // Best-effort restoration only. Source-only is the safe fallback; no
+    // success is reported when animation rebuilding fails.
+    el.replaceChildren(...priorNodes);
+    for (const attr of Array.from(el.attributes)) {
+      if (!priorAttrs.some(([name]) => attr.name === name)) el.removeAttribute(attr.name);
+    }
+    for (const [name, val] of priorAttrs) el.setAttribute(name, val);
+    return { ok: false, reason: 'rebuild-failed' };
+  }
+}
+
 // Message handling — relay between content script and side panel
 function dispatchPanelMessage(msg: any, sender: chrome.runtime.MessageSender, sendResponse: (value?: any) => void): boolean {
   if (!msg || typeof msg.type !== 'string' || sender.id !== browser.runtime.id) {
@@ -348,6 +407,23 @@ function dispatchPanelMessage(msg: any, sender: chrome.runtime.MessageSender, se
       || (msg.tabId !== undefined && (!Number.isSafeInteger(msg.tabId) || msg.tabId < 0))) {
       sendResponse({ ok: false }); return false;
     }
+  }
+  if (msg?.type === 'DM_SPLIT_TEXT_APPLY') {
+    const id = msg.elementId;
+    const value = msg.text;
+    if (sender.tab?.id == null || typeof id !== 'string' ||
+        !/^dm-\\d+$/.test(id) || typeof value !== 'string' ||
+        value.length > 100_000) {
+      sendResponse({ ok: false, reason: 'invalid-request' }); return false;
+    }
+    void browser.scripting.executeScript({
+      target: { tabId: sender.tab.id, frameIds: [sender.frameId ?? 0] },
+      world: 'MAIN',
+      func: updateRegisteredSplitTextInPage,
+      args: [id, value],
+    }).then(result => sendResponse(result[0]?.result || { ok: false, reason: 'bridge-unavailable' }))
+      .catch(() => sendResponse({ ok: false, reason: 'bridge-unavailable' }));
+    return true;
   }
   if (msg?.type === 'DM_REPLACE_USER_STYLES') {
     void replaceUserStyles(msg, sender).then(sendResponse);
