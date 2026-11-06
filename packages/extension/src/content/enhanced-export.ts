@@ -379,10 +379,10 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
       // Include markup only when it contains useful structure or authored
       // attributes. Empty divs/sections remain one short instruction.
       const markup = (change.outerHTML || '')
-        .replace(/\\sdata-dm-id="[^"]*"/g, '')
-        .replace(/\\sdata-dm-[\\w-]+="[^"]*"/g, '');
-      const meaningful = /\\s(?:class|style|id|src|alt|href)=/.test(markup) ||
-        />\\s*[^<\\s]/.test(markup) || /<\\w[^>]*>\\s*<\\w/.test(markup);
+        .replace(/\sdata-dm-id="[^"]*"/g, '')
+        .replace(/\sdata-dm-[\w-]+="[^"]*"/g, '');
+      const meaningful = /\s(?:class|style|id|src|alt|href)=/.test(markup) ||
+        />\s*[^<\s]/.test(markup) || /<\w[^>]*>\s*<\w/.test(markup);
       description = 'Add ' + change.tagName +
         (final ? ' at ' + locationLabel(final, change.elementId, true) : '') +
         (meaningful ? ': ' + markup : '.') ;
