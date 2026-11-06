@@ -7582,7 +7582,7 @@ function renderDesignTab(): string {
 
   const typographyActionsHtml = advancedToggleBtn('typography', typographyAdvOpen);
 
-  const typographySection = !vis.typography ? '' : sec('Typography', 'type', textField +
+  const typographySection = !vis.typography ? '' : sec('Typography', 'type',
     renderFontFamilyPicker(s.fontFamily || '') + sp() +
     grid(2, selKV('Weight', 'fontWeight', fontWeightCur, FONT_WEIGHTS, 'fontWeight'), inp('Size', 'fontSize', s.fontSize || '16px')) + sp() +
     grid(2,
@@ -8853,6 +8853,7 @@ function renderDesignTab(): string {
   return '<div style="overflow-x:hidden;">' + indicator + pageStatesRow +
     iconSection +
     ((kind === 'media' || kind === 'svg' || mediaInfo?.kind === 'background') ? renderMediaSection(displayInfo, s, isImg) : '') +
+    (showTextEdit ? sec('Text', 'type', textField, true) : '') +
     (!vis.position ? '' : sec('Position', 'move', positionContent, true, advancedToggleBtn('position', !!advancedOpen.position))) +
     (!vis.layout ? '' : sec('Layout', 'layoutGrid', layoutContent, true, layoutActionsHtml)) +
     (!vis.appearance ? '' : sec('Appearance', 'droplet', appearanceContent, true, appearanceActionsHtml)) +
