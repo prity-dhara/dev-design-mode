@@ -141,7 +141,7 @@ interface DomUndoEntry { kind: "dom"; action: string; elementId: string; html: s
 // `isHtml` distinguishes a rich-text (innerHTML) edit from a plain-text
 // (textContent) one, so undo/redo restore with the matching DOM property —
 // without it, old innerHTML was written into textContent and the tags showed.
-interface TextUndoEntry { kind: "text"; elementId: string; oldText: string; newText: string; isHtml?: boolean; attributeName?: string; }
+interface TextUndoEntry { kind: "text"; elementId: string; oldText: string; newText: string; isHtml?: boolean; sourceOnly?: boolean; attributeName?: string; }
 interface VisibilityUndoEntry { kind: "visibility"; elementId: string; wasHidden: boolean; oldDisplay: string; }
 interface TokenUndoEntry { kind: "token"; cssVar: string; scopeSelector: string; oldValue: string; newValue: string; original: string; }
 interface GestureUndoEntry { kind: "gesture"; entries: StyleUndoEntry[]; meta: { groupId: string; groupLabel: string }; }
@@ -925,6 +925,34 @@ async function openConfiguredTransport(isCurrent = () => on && dmIsActiveInstanc
     // An unreadable preference is not consent to dial a different transport.
     if (isCurrent()) disconnectFromServer();
   }
+}
+
+// Store a single source change on the original HTML host. Rebuild the live
+// GSAP animation only through an explicitly registered MAIN-world instance.
+async function saveLogicalSplitText(id: string, el: HTMLElement, nextText: string): Promise<string> {
+  if (!canEditRoute()) return 'editing-blocked';
+  const current = splitTextValue(el);
+  if (nextText === current) return 'unchanged';
+  const existing = getTextChanges().find(c => c.elementId === id && !c.attributeName);
+  const original = existing?.oldText ?? current;
+  const source = getSourceLocation(el);
+  const hint = source && source.file !== 'unknown'
+    ? `${source.cleanPath || source.file}${source.line ? ':' + source.line : ''} | ${generateSelector(el)}`
+    : splitTextSourceHint(el, generateSelector(el));
+  let live = false;
+  try {
+    const result = await browser.runtime.sendMessage({
+      type: 'DM_SPLIT_TEXT_APPLY', elementId: id, text: nextText,
+    });
+    live = result?.ok === true;
+  } catch { /* An inaccessible page-world instance is expected on most sites. */ }
+  if (!el.isConnected || !canEditRoute()) return 'editing-blocked';
+  recordSplitTextSourceChange(id, nextText, original, hint);
+  if (nextText === original) clearSplitTextDraft(el);
+  else setSplitTextDraft(el, nextText);
+  undoStack.push({ kind: 'text', elementId: id, oldText: current, newText: nextText, sourceOnly: true });
+  redoStack.length = 0;
+  return live ? 'animation-rebuilt' : `source-only: ${hint}`;
 }
 
 function enable() {
