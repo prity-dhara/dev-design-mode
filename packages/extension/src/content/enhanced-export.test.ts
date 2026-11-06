@@ -225,3 +225,15 @@ test('reverted style edits do not create a redundant exported instruction', () =
   assert.ok(!result.includes('font-weight:'));
   assert.ok(result.includes('No changes recorded'));
 });
+
+test('split headings export one text edit with GSAP-preservation guidance', () => {
+  const output = prompt({ texts: [
+    { elementId: 'title', selector: 'h1.hero-title',
+      oldText: 'We build digital products', newText: 'We create useful digital experiences',
+      isSplitText: true, timestamp: 1 },
+  ] });
+  assert.ok(output.includes('Set h1.hero-title text → "We create useful digital experiences"'));
+  assert.ok(output.includes('update original source text and re-split'));
+  assert.ok(output.includes('preserve animated wrappers'));
+  assert.equal((output.match(/Set h1.hero-title text/g) || []).length, 1);
+});
