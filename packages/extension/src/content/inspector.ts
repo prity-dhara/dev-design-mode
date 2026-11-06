@@ -3,7 +3,7 @@
 // ============================================================
 
 import { getOrAssignId, getElementById, getElementRect, generateSelector, getBreadcrumbs, getComputedStyleSubset } from './helpers';
-import { getSplitTextHost, isSplitTextHost } from './split-text';
+import { getSplitTextHost, getParagraphTextHost, isSplitTextHost } from './split-text';
 import { getAuthoredVarsForElement, getAuthoredShadowVars, type PropToken, type ShadowVarInfo } from './token-engine';
 import { inspectAuthoredSizing, unknownDimension, type AuthoredDimension } from './authored-sizing';
 import { showHover, hideHover, showSelect, updateSelectPosition, isOverlayElement } from './overlays';
@@ -144,7 +144,7 @@ function isDMElement(el: HTMLElement): boolean {
 function handleMouseOver(e: MouseEvent) {
   if (isResizing()) return;
   const rawTarget = e.target as HTMLElement;
-  const t = rawTarget && !isDMElement(rawTarget) ? (getSplitTextHost(rawTarget) || rawTarget) : rawTarget;
+  const t = rawTarget && !isDMElement(rawTarget) ? (getSplitTextHost(rawTarget) || getParagraphTextHost(rawTarget) || rawTarget) : rawTarget;
   if (!t || isDMElement(t)) return;
   showHover(t);
 
@@ -210,7 +210,7 @@ function handleMouseOut() {
 // plain click on the same element still falls through to handleClick.
 function handleMouseDown(e: MouseEvent) {
   const rawTarget = e.target as HTMLElement;
-  const t = rawTarget && !isDMElement(rawTarget) ? (getSplitTextHost(rawTarget) || rawTarget) : rawTarget;
+  const t = rawTarget && !isDMElement(rawTarget) ? (getSplitTextHost(rawTarget) || getParagraphTextHost(rawTarget) || rawTarget) : rawTarget;
   if (!t || isDMElement(t)) return;
   e.preventDefault();
   if (e.shiftKey) {
@@ -231,7 +231,7 @@ function handleMouseDown(e: MouseEvent) {
 
 function handleClick(e: MouseEvent) {
   const rawTarget = e.target as HTMLElement;
-  const t = rawTarget && !isDMElement(rawTarget) ? (getSplitTextHost(rawTarget) || rawTarget) : rawTarget;
+  const t = rawTarget && !isDMElement(rawTarget) ? (getSplitTextHost(rawTarget) || getParagraphTextHost(rawTarget) || rawTarget) : rawTarget;
   if (!t || isDMElement(t)) return;
   e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
   // Cancel any pending hover info — selection takes precedence

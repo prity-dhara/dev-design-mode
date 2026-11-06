@@ -68,6 +68,31 @@ export function getSplitTextHost(target: HTMLElement): HTMLElement | null {
   return candidate;
 }
 
+// Ordinary paragraphs often contain inline spans (for emphasis, CMS styling,
+// or animation wrappers). In inspect mode a click on one of those spans
+// should select the paragraph as a single editable text element. This is
+// separate from SplitText: normal paragraphs retain their rich-text editor.
+export function getParagraphTextHost(target: HTMLElement): HTMLElement | null {
+  const tag = target.tagName;
+  if (tag === 'A' || tag === 'BUTTON' || target.closest('a, button, [contenteditable="true"]')) return null;
+  let current: HTMLElement | null = target.parentElement;
+  while (current && current.tagName !== 'BODY') {
+    if (current.tagName === 'P' || current.tagName === 'BLOCKQUOTE' || current.tagName === 'FIGCAPTION') {
+      return current.querySelector('button, input, textarea, select, svg, canvas') ? null : current;
+    }
+    // A text-only Webflow text block can be a DIV rather than <p>.
+    // Require a known typography class and no separate block children.
+    const classes = typeof current.className === 'string' ? current.className : '';
+    if (current.tagName === 'DIV' && /(?:^|\s)(?:text-size-[\w-]+|text-block)(?:\s|$)/.test(classes) &&
+      !current.querySelector('h1, h2, h3, h4, h5, h6, p, section, article, ul, ol, a, button, input, textarea, select, svg, canvas')) {
+      return current;
+    }
+    if (/^(SECTION|ARTICLE|MAIN|NAV|HEADER|FOOTER)$/.test(current.tagName)) break;
+    current = current.parentElement;
+  }
+  return null;
+}
+
 // Snapshot/recover text nodes without replacing GSAP-owned DOM elements.
 export function splitTextNodes(el: HTMLElement): Text[] {
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
