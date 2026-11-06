@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isSplitTextRoot, splitTextRoot, splitTextValue } from './split-text.ts';
+import { isSplitTextRoot, isGeneratedSplitWrapper, splitTextRoot, splitTextValue } from './split-text.ts';
 
 type FakeEl = {
   tagName: string;
@@ -34,6 +34,14 @@ function children(root: FakeEl, parts: FakeEl[]) {
   parts.forEach(part => { part.parentElement = root; });
 }
 describe('animated split text selection', () => {
+  it('recognizes real Webflow gsap_split_word-mask and gsap_split_word classes', () => {
+    const mask = node('SPAN', ['gsap_split_word-mask'], 'reading');
+    const word = node('SPAN', ['gsap_split_word'], 'reading');
+    assert.equal(isGeneratedSplitWrapper(mask as unknown as HTMLElement), true);
+    assert.equal(isGeneratedSplitWrapper(word as unknown as HTMLElement), true);
+    assert.equal(isGeneratedSplitWrapper(node('H3', ['heading-style-h3']) as unknown as HTMLElement), false);
+  });
+
   it('selects the original heading when clicking a generated GSAP word', () => {
     const heading = node('H1', ['hero-heading'], 'Hello world', { 'aria-label': 'Hello world' });
     const a = node('SPAN', ['word'], 'Hello', { 'aria-hidden': 'true' });
