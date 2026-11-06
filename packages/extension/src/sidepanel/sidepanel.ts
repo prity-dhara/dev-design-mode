@@ -1894,7 +1894,7 @@ async function applyText(text: string, operation = beginInspectorOperation()) {
   if (res.splitTextResult === 'animation-rebuilt') {
     showCaptureToast('success', 'Updated the text and rebuilt its GSAP animation');
   } else if (typeof res.splitTextResult === 'string' && res.splitTextResult.startsWith('source-only:')) {
-    showCaptureToast('success', 'Text change saved for source update. Live GSAP animation unchanged.');
+    showCaptureToast('success', 'Source text change saved. Static preview shown when safe; GSAP animation preserved.');
   } else {
     render();
   }
@@ -1911,7 +1911,7 @@ async function applyHtml(elementId: string, html: string, operation = beginInspe
   if (res.splitTextResult === 'animation-rebuilt') {
     showCaptureToast('success', 'Updated the text and rebuilt its GSAP animation');
   } else if (typeof res.splitTextResult === 'string' && res.splitTextResult.startsWith('source-only:')) {
-    showCaptureToast('success', 'Text change saved for source update. Live GSAP animation unchanged.');
+    showCaptureToast('success', 'Source text change saved. Static preview shown when safe; GSAP animation preserved.');
   } else {
     render();
   }
