@@ -279,7 +279,7 @@ function getFullState() {
 function revertAllPageMutations() {
   // 1. Text changes: restore each tracked element's earliest oldText so
   //    multiple overlapping edits collapse to the original.
-  const firstTextOld = new Map<string, { elementId: string; oldText: string; isHtml?: boolean; attributeName?: string }>();
+  const firstTextOld = new Map<string, { elementId: string; oldText: string; isHtml?: boolean; sourceOnly?: boolean; attributeName?: string }>();
   for (const ch of getTextChanges()) {
     const key = `${ch.elementId}\0${ch.attributeName || 'content'}`;
     if (!firstTextOld.has(key)) firstTextOld.set(key, ch);
@@ -287,6 +287,10 @@ function revertAllPageMutations() {
   for (const [, ch] of firstTextOld) {
     const el = getElementById(ch.elementId);
     if (!el) continue;
+    if ((ch as typeof ch & { sourceOnly?: boolean }).sourceOnly) {
+      clearSplitTextDraft(el);
+      continue;
+    }
     if (ch.attributeName) {
       if (ch.oldText) el.setAttribute(ch.attributeName, ch.oldText); else el.removeAttribute(ch.attributeName);
     } else if (ch.isHtml) el.innerHTML = ch.oldText;
@@ -1389,6 +1393,16 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
             const dup = getElementById(entry.elementId);
             if (dup) dup.remove();
           }
+        } else if (entry.kind === 'text' && entry.sourceOnly) {
+          const el = getElementById(entry.elementId);
+          if (el) {
+            const initial = getTextChanges().find(c => c.elementId === entry.elementId)?.oldText || splitTextValue(el);
+            const hint = splitTextSourceHint(el, generateSelector(el));
+            recordSplitTextSourceChange(entry.elementId, entry.oldText, initial, hint);
+            if (entry.oldText === initial) clearSplitTextDraft(el);
+            else setSplitTextDraft(el, entry.oldText);
+            void browser.runtime.sendMessage({ type: 'DM_SPLIT_TEXT_APPLY', elementId: entry.elementId, text: entry.oldText }).catch(() => {});
+          }
         } else if (entry.kind === 'text') {
           // Restore through the tracker so the correct DOM property is used
           // (innerHTML for rich text, textContent for plain) and the row is
@@ -1444,6 +1458,15 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
                 parent.insertBefore(restored, next);
               }
             }
+          }
+        } else if (entry.kind === 'text' && entry.sourceOnly) {
+          const el = getElementById(entry.elementId);
+          if (el) {
+            const initial = getTextChanges().find(c => c.elementId === entry.elementId)?.oldText || splitTextValue(el);
+            recordSplitTextSourceChange(entry.elementId, entry.newText, initial, splitTextSourceHint(el, generateSelector(el)));
+            if (entry.newText === initial) clearSplitTextDraft(el);
+            else setSplitTextDraft(el, entry.newText);
+            void browser.runtime.sendMessage({ type: 'DM_SPLIT_TEXT_APPLY', elementId: entry.elementId, text: entry.newText }).catch(() => {});
           }
         } else if (entry.kind === 'text') {
           if (entry.attributeName) applyAttributeChange(entry.elementId, entry.attributeName, entry.newText);
@@ -1584,7 +1607,9 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
         if (textChange) {
           const el = getElementById(textChange.elementId);
           if (el) {
-            if (textChange.attributeName) {
+            if (textChange.sourceOnly) {
+              clearSplitTextDraft(el);
+            } else if (textChange.attributeName) {
               if (textChange.oldText) el.setAttribute(textChange.attributeName, textChange.oldText); else el.removeAttribute(textChange.attributeName);
             } else if (textChange.isHtml) el.innerHTML = textChange.oldText;
             else el.textContent = textChange.oldText;
