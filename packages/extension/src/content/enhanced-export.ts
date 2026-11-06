@@ -236,8 +236,8 @@ function tokenize(value: string, lookup: Map<string, string>, used: Set<string>)
 // A short selector is useful only if it actually points to the intended node.
 // Prefer a unique ID, then a unique class, then a named ancestor + class and
 // 1-based position. Retain the recorded path if we cannot verify the match.
-function compactSelector(elementId: string | undefined, recorded: string): string {
-  const el = elementId ? getElementById(elementId) : null;
+function compactSelector(elementId: string | undefined, recorded: string, explicit?: HTMLElement | null): string {
+  const el = explicit ?? (elementId ? getElementById(elementId) : null);
   if (!el) return recorded;
   const matches = (selector: string, node: Element): boolean => {
     try { return document.querySelectorAll(selector).length === 1 && document.querySelector(selector) === node; }
@@ -279,6 +279,16 @@ function compactSelector(elementId: string | undefined, recorded: string): strin
     if (index > 0 && parentSelector) return parentSelector + ' > .' + CSS.escape(classes[0]) + ' (' + index + ' of ' + siblings.length + ')';
   }
   return recorded || generateSelector(el);
+}
+
+// Only abbreviate a recorded duplicate source when the original still
+// resolves uniquely and is not the newly created clone.
+function compactDuplicateSource(recorded: string, cloneId: string): string {
+  try {
+    const nodes = document.querySelectorAll(recorded);
+    if (nodes.length !== 1 || nodes[0] === getElementById(cloneId)) return recorded;
+    return compactSelector(undefined, recorded, nodes[0] as HTMLElement);
+  } catch { return recorded; }
 }
 
 function compactSelectorForParent(parent: HTMLElement): string {
@@ -343,7 +353,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
   const firstStyle = styles[0];
   const firstText = texts[0];
   const rootTarget = firstDom
-    ? locationLabel(firstDom.destination ?? firstDom.origin!, undefined).split(', child ')[0]
+    ? locationLabel(finalMoves.get(firstDom.elementId)?.destination ?? firstDom.destination ?? firstDom.origin!, undefined).split(', child ')[0]
     : firstStyle ? elementLabel(firstStyle.elementId, firstStyle.selector)
     : firstText ? elementLabel(firstText.elementId, firstText.selector)
     : '';
@@ -358,7 +368,7 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
     const final = finalMoves.get(change.elementId)?.destination ?? change.destination;
     let description = '';
     if (change.action === 'duplicate') {
-      const source = change.sourceSelector || change.selector;
+      const source = compactDuplicateSource(change.sourceSelector || change.selector, change.elementId);
       description = 'Duplicate ' + source +
         (final ? ' → ' + locationLabel(final, change.elementId, true) : '') +
         '. Preserve styles and classes; edit the new copy only.';
