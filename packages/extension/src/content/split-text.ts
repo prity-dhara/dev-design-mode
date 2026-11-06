@@ -14,16 +14,16 @@ function matchesClass(el: HTMLElement, pattern: RegExp): boolean {
   return Array.from(el.classList).some(name => pattern.test(name));
 }
 function hasSplitPart(el: HTMLElement): boolean {
-  return splitPart(el) || !!el.querySelector('[data-split-line],[data-split-word],[data-split-char],.line,.lines,.word,.words,.char,.chars,.gsap_split_line,.gsap_split_word,.gsap_split_word-mask,.gsap_split_line-mask,.gsap-split-word,.gsap-split-word-mask');
+  return splitPart(el) || Array.from(el.querySelectorAll<HTMLElement>('*')).some(splitPart);
 }
 function directGroups(el: HTMLElement): HTMLElement[] {
   return Array.from(el.children).filter((child): child is HTMLElement =>
-    child instanceof HTMLElement && hasSplitPart(child));
+    hasSplitPart(child as HTMLElement));
 }
 export function isSplitTextRoot(el: HTMLElement): boolean {
   if (splitPart(el)) return false; // The generated wrapper itself is never the editable host.
   if (rememberedRoots.has(el)) return true; // Remember the source after preview is flattened.
-  const children = Array.from(el.children) as HTMLElement[];
+  const children = Array.from(el.children || []) as HTMLElement[];
   if (!children.length) return false;
   const groups = directGroups(el);
   // Only select the *closest text host*. Do not collapse an entire section
