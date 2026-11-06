@@ -7418,6 +7418,23 @@ function renderDesignTab(): string {
       '</div>'
     : '';
 
+  // Selecting a Webflow layout wrapper should expose its authored text
+  // blocks as explicit targets. Never edit the parent wrapper's aggregated
+  // text or turn a reviewer comment into an actual text change.
+  const innerTextTargets = !showTextEdit && Array.isArray((displayInfo as any).textTargets)
+    ? (displayInfo as any).textTargets as Array<{ id: string; tagName: string; preview: string }>
+    : [];
+  const innerTextSection = innerTextTargets.length
+    ? '<div style="display:flex;flex-direction:column;gap:6px;">' +
+      '<div style="font-size:10px;color:var(--dm-text-muted);">Choose the original text element to edit. GSAP words are grouped automatically.</div>' +
+      innerTextTargets.map(item =>
+        '<button type="button" data-dm-text-target="' + escapeAttr(item.id) +
+        '" class="dm-btn" style="width:100%;text-align:left;display:flex;gap:8px;align-items:flex-start;white-space:normal;min-width:0;">' +
+        '<span style="font-size:10px;opacity:0.7;">&lt;' + escapeAttr(item.tagName) + '&gt;</span>' +
+        '<span style="overflow-wrap:anywhere;">' + escapeAttr(item.preview) + '</span></button>'
+      ).join('') + '</div>'
+    : '';
+
   // Smart section defaults (Phase 3D)
   const positionDefault = (s.position === 'static' || !s.position) ? false : true;
   const hasEffects = (s.boxShadow && s.boxShadow !== 'none') || (s.textShadow && s.textShadow !== 'none') ||
@@ -8854,6 +8871,7 @@ function renderDesignTab(): string {
     iconSection +
     ((kind === 'media' || kind === 'svg' || mediaInfo?.kind === 'background') ? renderMediaSection(displayInfo, s, isImg) : '') +
     (showTextEdit ? sec('Text', 'type', textField, true) : '') +
+    (innerTextTargets.length ? sec('Text inside', 'type', innerTextSection, true) : '') +
     (!vis.position ? '' : sec('Position', 'move', positionContent, true, advancedToggleBtn('position', !!advancedOpen.position))) +
     (!vis.layout ? '' : sec('Layout', 'layoutGrid', layoutContent, true, layoutActionsHtml)) +
     (!vis.appearance ? '' : sec('Appearance', 'droplet', appearanceContent, true, appearanceActionsHtml)) +
@@ -10323,6 +10341,14 @@ function setupDelegation() {
       cornerShapePickerOpen = false;
       // Preserve the clicked control until its own handler has consumed the event.
       queueMicrotask(render);
+    }
+
+    const textTarget = target.closest<HTMLElement>('[data-dm-text-target]');
+    if (textTarget) {
+      e.preventDefault();
+      const id = textTarget.dataset.dmTextTarget;
+      if (id) await selectElement(id, operation);
+      return;
     }
 
     // Tab switching. When arriving on the Layers tab from somewhere else
