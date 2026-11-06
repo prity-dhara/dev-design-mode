@@ -75,6 +75,24 @@ describe('animated split text selection', () => {
     assert.equal(splitTextRoot(secondWord as unknown as HTMLElement), paragraph);
     assert.equal(splitTextValue(paragraph as unknown as HTMLElement), 'GalentAI builds a context graph');
   });
+  it('detects an H3 with one generated GSAP line and nested words', () => {
+    const heading = node('H3', ['heading-style-h3'], 'A better future');
+    const line = node('DIV', ['gsap_split_line'], 'A better future');
+    const a = node('SPAN', ['gsap_split_word-mask'], 'A');
+    const b = node('SPAN', ['gsap_split_word-mask'], 'better');
+    const c = node('SPAN', ['gsap_split_word-mask'], 'future');
+    children(a, [node('SPAN', ['gsap_split_word'], 'A')]);
+    children(b, [node('SPAN', ['gsap_split_word'], 'better')]);
+    children(c, [node('SPAN', ['gsap_split_word'], 'future')]);
+    children(line, [a, b, c]);
+    children(heading, [line]);
+    const parent = node('DIV', ['section'], 'Surrounding content');
+    children(parent, [heading]);
+    assert.equal(isSplitTextRoot(heading as unknown as HTMLElement), true);
+    assert.equal(isSplitTextRoot(parent as unknown as HTMLElement), false);
+    assert.equal(splitTextRoot(b.children[0] as unknown as HTMLElement), heading);
+    assert.equal(splitTextValue(heading as unknown as HTMLElement), 'A better future');
+  });
   it('reconstructs word boundaries if a custom splitter removed whitespace', () => {
     const paragraph = node('P', [], 'Helloworld');
     const one = node('SPAN', ['gsap_split_word'], 'Hello');
