@@ -104,6 +104,7 @@ function unmarkedUnit(text: string, style = ''): any {
     tagName: 'SPAN', textContent: text, attributes: [],
     getAttribute(name: string) { return name === 'style' ? style : ''; },
     querySelector: () => null,
+    querySelectorAll: () => [],
   };
 }
 
