@@ -100,7 +100,7 @@ test('duplicate then move outputs only final destination and identifies edits on
       oldText: '250', newText: '400+' }],
   });
   assert.ok(result.includes('Duplicate ul.stats > li.stat:nth-of-type(3) → ul.metrics, child 2'));
-  assert.ok(result.includes('edit the new copy only'));
+  assert.ok(result.includes('edit new copy only'));
   assert.ok(result.includes('Set new li at ul.metrics, child 2 text → "400+".'));
   assert.ok(!result.includes('Move new li'));
 });
@@ -173,4 +173,55 @@ test('no-ops and resolved changes are excluded, tokens retain semantic values', 
   assert.ok(result.includes('font-size: var(--size-lg)'));
   assert.ok(result.includes('Set token --brand → #fff at its definition.'));
   assert.ok(result.includes('Note on .card: Align this card'));
+});
+
+test('only final CSS property is exported after repeated changes', () => {
+  const result = prompt({ styles: [
+    { elementId: 'copy', selector: '.copy', property: 'textAlign',
+      oldValue: 'left', newValue: 'start', timestamp: 1 },
+    { elementId: 'copy', selector: '.copy', property: 'textAlign',
+      oldValue: 'start', newValue: 'center', timestamp: 2 },
+    { elementId: 'copy', selector: '.copy', property: 'fontSize',
+      oldValue: '16px', newValue: '18px', timestamp: 3 },
+    { elementId: 'copy', selector: '.copy', property: 'fontSize',
+      oldValue: '18px', newValue: '20px', timestamp: 4 },
+  ] });
+  assert.ok(result.includes('text-align: center'));
+  assert.ok(result.includes('font-size: 20px'));
+  assert.ok(!result.includes('text-align: start'));
+  assert.ok(!result.includes('font-size: 18px'));
+  assert.equal((result.match(/text-align:/g) || []).length, 1);
+  assert.equal((result.match(/font-size:/g) || []).length, 1);
+});
+
+test('styling a duplicated paragraph scopes the override to the new copy', () => {
+  const result = prompt({
+    dom: [{ elementId: 'copy', selector: '.hero-copy-inner p', action: 'duplicate',
+      tagName: 'p', sourceSelector: '.hero-copy-inner p', timestamp: 1,
+      destination: { parentSelector: '#how > div.section-heading.centered:nth-of-type(1)', index: 2 } }],
+    styles: [
+      { elementId: 'copy', selector: 'p', property: 'fontSize', oldValue: '16px',
+        newValue: '20px', timestamp: 2 },
+      { elementId: 'copy', selector: 'p', property: 'textAlign', oldValue: 'start',
+        newValue: 'center', timestamp: 3 },
+    ],
+    texts: [{ elementId: 'copy', selector: 'p', oldText: 'Old', newText: 'New', timestamp: 4 }],
+  });
+  assert.ok(result.includes('Duplicate .hero-copy-inner p'));
+  assert.ok(result.includes('Keep original classes/styles; edit new copy only'));
+  assert.ok(result.includes('Style new p'));
+  assert.ok(result.includes('font-size: 20px; text-align: center'));
+  assert.ok(result.includes('Scope to this copy (unique class/selector); never edit the shared class'));
+  assert.ok(result.includes('Set new p'));
+});
+
+test('reverted style edits do not create a redundant exported instruction', () => {
+  const result = prompt({ styles: [
+    { elementId: 'paragraph', selector: '.paragraph', property: 'fontWeight',
+      oldValue: '400', newValue: '500', timestamp: 1 },
+    { elementId: 'paragraph', selector: '.paragraph', property: 'fontWeight',
+      oldValue: '500', newValue: '400', timestamp: 2 },
+  ] });
+  assert.ok(!result.includes('font-weight:'));
+  assert.ok(result.includes('No changes recorded'));
 });
