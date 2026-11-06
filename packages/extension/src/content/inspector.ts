@@ -26,6 +26,7 @@ export type ElementInfo = Pick<SharedElementInfo, 'rect' | 'childGap'> & {
   // multi-token shadow chip (a single `styleTokens` entry can't hold a stack).
   shadowVars: Record<string, ShadowVarInfo>;
   textContent: string | null; innerHTML: string; splitText?: boolean; editableTextHost?: boolean; sourceHint?: string;
+  textTargets?: Array<{ id: string; tagName: string; preview: string }>;
   attributes: Record<string, string>; selector: string;
   iconInfo?: IconInfo;
   parentDisplay?: string;
@@ -86,6 +87,33 @@ function detectIconInfo(el: HTMLElement): IconInfo | undefined {
 
 // `skipTokens` keeps the debounced hover path cheap — var attribution
 // walks matched rules and is only needed once an element is selected.
+// When an outer Webflow wrapper is selected, offer explicit inner text
+// targets instead of converting the whole card/section into one text field.
+// Never guess between multiple paragraphs or include generated GSAP spans.
+function collectInnerTextTargets(el: HTMLElement): Array<{ id: string; tagName: string; preview: string }> {
+  if (['HTML', 'BODY'].includes(el.tagName)) return [];
+  if (isSplitTextRoot(el) || isEditableTextHost(el)) return [];
+  const descendants = Array.from(el.querySelectorAll<HTMLElement>(
+    'h1,h2,h3,h4,h5,h6,p,blockquote,li,figcaption,div'
+  ));
+  if (descendants.length > 120) return []; // Avoid large page-level containers.
+  const targets: Array<{ id: string; tagName: string; preview: string }> = [];
+  for (const child of descendants) {
+    if (!child.isConnected || (!isSplitTextRoot(child) && !isEditableTextHost(child) &&
+      !/^(H[1-6]|P|BLOCKQUOTE|LI|FIGCAPTION)$/.test(child.tagName))) continue;
+    if (targets.some(item => item.id === child.dataset.dmId)) continue;
+    const label = (isSplitTextRoot(child) ? splitTextValue(child) : child.textContent || '').trim();
+    if (!label) continue;
+    targets.push({
+      id: getOrAssignId(child),
+      tagName: child.tagName.toLowerCase(),
+      preview: label.replace(/\\s+/g, ' ').slice(0, 75),
+    });
+    if (targets.length >= 8) break;
+  }
+  return targets;
+}
+
 export function buildElementInfo(el: HTMLElement, skipTokens = false): ElementInfo {
   const id = getOrAssignId(el);
   const attrs: Record<string, string> = {};
@@ -118,6 +146,7 @@ export function buildElementInfo(el: HTMLElement, skipTokens = false): ElementIn
     textContent: (isSplitTextRoot(el) ? splitTextValue(el) : el.textContent || '').slice(0, 500) || null,
     splitText: isSplitTextRoot(el),
     editableTextHost: isEditableTextHost(el),
+    textTargets: skipTokens ? undefined : collectInnerTextTargets(el),
     sourceHint: isSplitTextRoot(el) ? splitTextSourceHint(el, generateSelector(el)) : undefined,
     innerHTML,
     attributes: attrs, selector: generateSelector(el),
