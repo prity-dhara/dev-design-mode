@@ -39,7 +39,15 @@ export function isSplitTextRoot(el: HTMLElement): boolean {
   const explicit = nested.some(isGeneratedSplitWrapper);
   const accessible = !!el.getAttribute('aria-label') &&
     nested.some(part => part.getAttribute('aria-hidden') === 'true');
-  return explicit || (accessible && nested.filter(isPart).length >= 2);
+  // GSAP's stock SplitText may use plain .char/.word classes. Recognize
+  // those only on a text-semantic host with multiple fragment tokens, not
+  // on arbitrary div/card/grid containers with generic class names.
+  const semanticTextHost = /^(?:H[1-6]|P|BLOCKQUOTE)$/.test(el.tagName);
+  const tokenCount = nested.filter(part =>
+    classes(part).some(name => /^(?:word|words|char|chars)$/.test(name))).length;
+  const stockSplitText = semanticTextHost && tokenCount >= 3 &&
+    directParts.length === el.children.length;
+  return explicit || (accessible && nested.filter(isPart).length >= 2) || stockSplitText;
 }
 
 /** Only generated fragments, never the authored heading or paragraph. */
