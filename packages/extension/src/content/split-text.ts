@@ -35,7 +35,7 @@ function isWord(el: HTMLElement): boolean {
 function isRepeatedTextSpanHost(el: HTMLElement): boolean {
   const textHost = /^(?:H[1-6]|P|BLOCKQUOTE)$/.test(el.tagName) ||
     (el.tagName === 'DIV' && classes(el).some(name =>
-      /^(?:text-size-|text-style-|heading-style-)/.test(name)));
+      /^(?:text-size-|text-style-|heading-style-|p-tagline(?:$|-))/.test(name)));
   if (!textHost) return false;
   const children = Array.from(el.children) as HTMLElement[];
   if (children.length < 4 || children.length > 500 ||
@@ -67,7 +67,7 @@ export function isSplitTextRoot(el: HTMLElement): boolean {
   // on arbitrary div/card/grid containers with generic class names.
   const semanticTextHost = /^(?:H[1-6]|P|BLOCKQUOTE)$/.test(el.tagName) ||
     (el.tagName === 'DIV' && classes(el).some(name =>
-      /^(?:text-size-|text-style-|heading-style-)/.test(name)));
+      /^(?:text-size-|text-style-|heading-style-|p-tagline(?:$|-))/.test(name)));
   const tokenCount = nested.filter(part =>
     classes(part).some(name => /^(?:word|words|char|chars)$/.test(name))).length;
   const stockSplitText = semanticTextHost && tokenCount >= 2 &&
