@@ -556,7 +556,9 @@ function onElementSelected(info: ElementInfo) {
       ...extra,
       element: undefined,
       imgSrc: el?.tagName === 'IMG' ? (el as HTMLImageElement).src : undefined,
-      textContent: el?.textContent?.trim()?.slice(0, 500) || undefined,
+      // Use the inspector's logical text, not the runtime GSAP span
+      // concatenation. Otherwise source text is overwritten on selection.
+      textContent: info.textContent?.trim() || undefined,
       hasChildElements: el ? el.children.length > 0 : false,
       layoutGuides: getLayoutGuidesFor(info.id),
       pageStates,
