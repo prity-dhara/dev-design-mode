@@ -47,7 +47,7 @@ export function isSplitTextRoot(el: HTMLElement): boolean {
       /^(?:text-size-|text-style-|heading-style-)/.test(name)));
   const tokenCount = nested.filter(part =>
     classes(part).some(name => /^(?:word|words|char|chars)$/.test(name))).length;
-  const stockSplitText = semanticTextHost && tokenCount >= 3 &&
+  const stockSplitText = semanticTextHost && tokenCount >= 2 &&
     directParts.length === el.children.length;
   return explicit || (accessible && nested.filter(isPart).length >= 2) || stockSplitText;
 }
