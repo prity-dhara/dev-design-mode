@@ -25,9 +25,9 @@ import { showHover, hideHover, showSelect, hideSelect, destroyOverlays, resetOve
 import { enableInspect, disableInspect, isInspectActive, getSelectedElementId, hasExplicitSelection, setSelectedElementId, buildElementInfo, getComputedStylesBlock } from './inspector';
 import type { ElementInfo } from './inspector';
 import { initCustomCursor, applyBaseCursor, clearBaseCursor } from './custom-cursor';
-import { getStyleChanges, getTextChanges, getDomChanges, clearAllChanges, applyStyleChange, applyWithCompanions, computeCompanions, applyTextChange, applyHtmlChange, applyAttributeChange, removeStyleChange, removeDomChange, removeTextChange, recordDomChange, connectToServer, disconnectFromServer, isConnected, isAgentConnected, getChangeReport, reorderChange, getAllChanges, replaySession, setOverridesEnabled, applyChangesPayload, setUnhandledMessageHandler, sendRelayResponse, setChangesStatus, syncCommentChange, syncCommentDeleted, stageAgentHandoff, getFeedbackSessionView, isLiveFeedbackSupported, stopFeedbackSessionFromUi } from './change-tracker';
+import { getStyleChanges, getTextChanges, getDomChanges, clearAllChanges, applyStyleChange, applyWithCompanions, computeCompanions, applyTextChange, recordSplitTextSourceChange, applyHtmlChange, applyAttributeChange, removeStyleChange, removeDomChange, removeTextChange, recordDomChange, connectToServer, disconnectFromServer, isConnected, isAgentConnected, getChangeReport, reorderChange, getAllChanges, replaySession, setOverridesEnabled, applyChangesPayload, setUnhandledMessageHandler, sendRelayResponse, setChangesStatus, syncCommentChange, syncCommentDeleted, stageAgentHandoff, getFeedbackSessionView, isLiveFeedbackSupported, stopFeedbackSessionFromUi } from './change-tracker';
 import { isSafeRichTextHref } from '../rich-text-preservation';
-import { isSplitTextRoot, splitTextValue, startSplitTextCleanup, stopSplitTextCleanup } from './split-text';
+import { isSplitTextRoot, splitTextRoot, splitTextValue, splitTextSourceHint, setSplitTextDraft, clearSplitTextDraft } from './split-text';
 import { copyElement, pasteElement, duplicateElement, moveElement } from './html-editor';
 import { isTypingTarget } from './shortcut-binding';
 import { deleteElements, type DeleteCommand } from './delete-command';
@@ -930,8 +930,7 @@ async function openConfiguredTransport(isCurrent = () => on && dmIsActiveInstanc
 function enable() {
   if (on) return;
   on = true;
-  // Replace runtime SplitText wrappers with one editable preview per heading.
-  startSplitTextCleanup();
+  // Keep GSAP's generated nodes intact; selections map to source elements.
   const generation = ++activationGeneration;
   const isCurrent = () => on && generation === activationGeneration && dmIsActiveInstance();
   document.addEventListener('keydown', onHistoryKeyDown, true);
@@ -964,8 +963,7 @@ function enable() {
 function disable() {
   if (!on) return;
   on = false;
-  // Put the original GSAP nodes back if no text was edited.
-  stopSplitTextCleanup();
+  // No SplitText DOM replacement is needed; leave the site's animation intact.
   activationGeneration++;
   document.removeEventListener('keydown', onHistoryKeyDown, true);
   restoreOriginalPreview();
@@ -1641,57 +1639,63 @@ function handleContentMessage(msg: any, _: any, sendResponse: (payload: any) => 
     }
 
     case 'SET_TEXT': {
-      const sid = getSelectedElementId();
-      if (sid && msg.text !== undefined) {
-        const el = getElementById(sid);
-        if (el) {
-          const oldText = isSplitTextRoot(el) ? splitTextValue(el) : (el.textContent || '');
-          if (oldText !== msg.text) {
-            applyTextChange(sid, msg.text);
-            undoStack.push({ kind: 'text', elementId: sid, oldText, newText: msg.text });
-            redoStack.length = 0;
+      void (async () => {
+        const sid = getSelectedElementId();
+        const selected = sid ? getElementById(sid) : null;
+        const el = selected ? (splitTextRoot(selected) || selected) : null;
+        let splitTextResult: string | undefined;
+        if (el && typeof msg.text === 'string') {
+          const id = getOrAssignId(el);
+          if (isSplitTextRoot(el)) {
+            splitTextResult = await saveLogicalSplitText(id, el, msg.text);
+          } else {
+            const oldText = el.textContent || '';
+            if (oldText !== msg.text) {
+              applyTextChange(id, msg.text);
+              undoStack.push({ kind: 'text', elementId: id, oldText, newText: msg.text });
+              redoStack.length = 0;
+            }
           }
-          const info = buildElementInfo(el);
-          onElementSelected(info);
+          setSelectedElementId(id);
+          onElementSelected(buildElementInfo(el));
         }
-      }
-      getChangesPayload().then(p => sendResponse({ ok: true, ...p, undoCount: undoStack.length, redoCount: redoStack.length })).catch(error => sendResponse({ ok: false, error: String(error) }));
+        const payload = await getChangesPayload();
+        sendResponse({ ok: true, ...payload, splitTextResult, undoCount: undoStack.length, redoCount: redoStack.length });
+      })().catch(error => sendResponse({ ok: false, error: String(error) }));
       return true;
     }
 
     // Rich text save — sets innerHTML so bold/italic/lists/links survive.
     // The undoStack entry records the OLD innerHTML; revert via el.innerHTML.
     case 'SET_HTML': {
-      const sid = typeof msg.elementId === 'string' ? msg.elementId : '';
-      if (sid && typeof msg.html === 'string') {
-        const el = getElementById(sid);
-        if (el) {
+      void (async () => {
+        const sid = typeof msg.elementId === 'string' ? msg.elementId : '';
+        const selected = sid ? getElementById(sid) : null;
+        const el = selected ? (splitTextRoot(selected) || selected) : null;
+        let splitTextResult: string | undefined;
+        if (el && typeof msg.html === 'string') {
+          const id = getOrAssignId(el);
           if (isSplitTextRoot(el)) {
-            // Never export GSAP's runtime-generated wrapper HTML as editable content.
-            // Preserve a single source-text change for the original heading.
+            // Generated GSAP wrappers are not authored rich text. Save the
+            // logical plain text only; never replace the wrapper innerHTML.
             const draft = document.createElement('div');
             draft.innerHTML = msg.html;
-            const nextText = draft.textContent || '';
-            const oldText = splitTextValue(el);
-            if (nextText !== oldText) {
-              applyTextChange(sid, nextText);
-              undoStack.push({ kind: 'text', elementId: sid, oldText, newText: nextText });
-              redoStack.length = 0;
-            }
+            splitTextResult = await saveLogicalSplitText(id, el, draft.textContent || '');
           } else {
             const oldHtml = el.innerHTML || '';
-            applyHtmlChange(sid, msg.html, undefined, true);
+            applyHtmlChange(id, msg.html, undefined, true);
             const newHtml = el.innerHTML || '';
             if (oldHtml !== newHtml) {
-              undoStack.push({ kind: 'text', elementId: sid, oldText: oldHtml, newText: newHtml, isHtml: true });
+              undoStack.push({ kind: 'text', elementId: id, oldText: oldHtml, newText: newHtml, isHtml: true });
               redoStack.length = 0;
             }
           }
-          const info = buildElementInfo(el);
-          onElementSelected(info);
+          setSelectedElementId(id);
+          onElementSelected(buildElementInfo(el));
         }
-      }
-      getChangesPayload().then(p => sendResponse({ ok: true, ...p, undoCount: undoStack.length, redoCount: redoStack.length })).catch(error => sendResponse({ ok: false, error: String(error) }));
+        const payload = await getChangesPayload();
+        sendResponse({ ok: true, ...payload, splitTextResult, undoCount: undoStack.length, redoCount: redoStack.length });
+      })().catch(error => sendResponse({ ok: false, error: String(error) }));
       return true;
     }
 
