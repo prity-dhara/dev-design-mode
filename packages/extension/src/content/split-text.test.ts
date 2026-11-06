@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isSplitTextRoot, isGeneratedSplitWrapper, splitTextRoot, splitTextValue, setSplitTextDraft, clearSplitTextDraft } from './split-text.ts';
+import { isSplitTextRoot, isGeneratedSplitWrapper, isLogicalSplitWrapper, splitTextRoot, splitTextValue, setSplitTextDraft, clearSplitTextDraft } from './split-text.ts';
 
 type FakeEl = {
   tagName: string;
@@ -135,6 +135,7 @@ describe('animated split text selection', () => {
     children(paragraph, words);
     assert.equal(isSplitTextRoot(paragraph as unknown as HTMLElement), true);
     assert.equal(splitTextRoot(words[2] as unknown as HTMLElement), paragraph);
+    assert.equal(isLogicalSplitWrapper(words[2] as unknown as HTMLElement), true);
     assert.equal(splitTextValue(paragraph as unknown as HTMLElement), 'Invest globally from India in dollars');
   });
   it('never treats a layout div with several labeled spans as one text host', () => {
