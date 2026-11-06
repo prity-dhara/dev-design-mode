@@ -30,6 +30,7 @@ const style = z.object({ ...base,
 });
 const text = z.object({ ...base, oldText: str, newText: str,
   isHtml: z.boolean().optional(), attributeName: z.literal('href').optional(),
+  sourceOnly: z.boolean().optional(), sourceHint: z.string().max(2000).optional(),
 });
 const dom = z.object({ ...base,
   action: z.enum(['delete', 'duplicate', 'move', 'insert']),
