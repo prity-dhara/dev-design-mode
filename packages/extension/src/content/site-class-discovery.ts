@@ -11,7 +11,7 @@ const SAFE_CLASS = /^[a-zA-Z_][\w-]{0,79}$/;
 export function isSafeClassName(name: string): boolean {
   return SAFE_CLASS.test(name) && !name.startsWith('dm-');
 }
-export function classifySiteElement(el: Element): BuilderKind | 'other' {
+export function classifySiteElement(el: Element): BuilderKind | 'other' | 'image' {
   const tag = el.tagName.toLowerCase();
   if (tag === 'section') return 'section';
   if (/^h[1-6]$/.test(tag)) return 'heading';
