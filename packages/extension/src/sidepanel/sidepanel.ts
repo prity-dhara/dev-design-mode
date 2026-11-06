@@ -1883,9 +1883,39 @@ function applyStrokePosition(pos: StrokePos) {
   render();
 }
 async function applyText(text: string, operation = beginInspectorOperation()) {
-  operation.assertCurrent(); const res = await operation.wait(send({ type: 'SP_SET_TEXT', text }, operation)); if (res.info) info = res.info; if (res.styleChanges) styleChanges = res.styleChanges; if (res.textChanges) textChanges = res.textChanges; if (res.domChanges) domChanges = res.domChanges; if (res.undoCount != null) undoCount = res.undoCount; if (res.redoCount != null) redoCount = res.redoCount; render(); }
+  operation.assertCurrent();
+  const res = await operation.wait(send({ type: 'SP_SET_TEXT', text }, operation));
+  if (res.info) info = res.info;
+  if (res.styleChanges) styleChanges = res.styleChanges;
+  if (res.textChanges) textChanges = res.textChanges;
+  if (res.domChanges) domChanges = res.domChanges;
+  if (res.undoCount != null) undoCount = res.undoCount;
+  if (res.redoCount != null) redoCount = res.redoCount;
+  if (res.splitTextResult === 'animation-rebuilt') {
+    showCaptureToast('success', 'Updated the text and rebuilt its GSAP animation');
+  } else if (typeof res.splitTextResult === 'string' && res.splitTextResult.startsWith('source-only:')) {
+    showCaptureToast('success', 'Text change saved for source update. Live GSAP animation unchanged.');
+  } else {
+    render();
+  }
+}
 async function applyHtml(elementId: string, html: string, operation = beginInspectorOperation()) {
-  operation.assertCurrent(); const res = await operation.wait(send({ type: 'SP_SET_HTML', elementId, html }, operation)); if (res.info) info = res.info; if (res.styleChanges) styleChanges = res.styleChanges; if (res.textChanges) textChanges = res.textChanges; if (res.domChanges) domChanges = res.domChanges; if (res.undoCount != null) undoCount = res.undoCount; if (res.redoCount != null) redoCount = res.redoCount; render(); }
+  operation.assertCurrent();
+  const res = await operation.wait(send({ type: 'SP_SET_HTML', elementId, html }, operation));
+  if (res.info) info = res.info;
+  if (res.styleChanges) styleChanges = res.styleChanges;
+  if (res.textChanges) textChanges = res.textChanges;
+  if (res.domChanges) domChanges = res.domChanges;
+  if (res.undoCount != null) undoCount = res.undoCount;
+  if (res.redoCount != null) redoCount = res.redoCount;
+  if (res.splitTextResult === 'animation-rebuilt') {
+    showCaptureToast('success', 'Updated the text and rebuilt its GSAP animation');
+  } else if (typeof res.splitTextResult === 'string' && res.splitTextResult.startsWith('source-only:')) {
+    showCaptureToast('success', 'Text change saved for source update. Live GSAP animation unchanged.');
+  } else {
+    render();
+  }
+}
 async function applyAttribute(elementId: string, attributeName: string, value: string, operation = beginInspectorOperation()) {
   operation.assertCurrent(); const res = await operation.wait(send({ type: 'SP_SET_ATTRIBUTE', elementId, attributeName, value }, operation)); if (res.info) info = res.info; if (res.styleChanges) styleChanges = res.styleChanges; if (res.textChanges) textChanges = res.textChanges; if (res.undoCount != null) undoCount = res.undoCount; if (res.redoCount != null) redoCount = res.redoCount; render(); }
 async function domAction(action: string, operation = beginInspectorOperation()) {
