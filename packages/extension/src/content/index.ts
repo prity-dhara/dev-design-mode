@@ -522,10 +522,13 @@ window.addEventListener('dm-styles-painted', () => {
 });
 
 function selectAndNotify(el: HTMLElement) {
-  const info = buildElementInfo(el);
+  // Layer selections, keyboard navigation and inspector clicks must resolve
+  // generated GSAP spans to the SAME authored heading/paragraph source.
+  const host = splitTextRoot(el) || el;
+  const info = buildElementInfo(host);
   setSelectedElementId(info.id);
-  showSelect(el);
-  showResizeDots(el);
+  showSelect(host);
+  showResizeDots(host);
   onElementSelected(info);
   return info;
 }
