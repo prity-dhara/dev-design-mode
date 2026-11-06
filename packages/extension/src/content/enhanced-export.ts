@@ -324,7 +324,10 @@ export function exportMarkdown(pageComments: CommentData[] = []): string {
       : inlineTextDiff(oldText, newText);
     entries.push({
       t: c.timestamp,
-      line: (diff !== null ? `- ${head} text: ${diff}` : `- ${head} text → "${newText}"`) + breakpointTag([c]),
+      line: (diff !== null ? `- ${head} text: ${diff}` : `- ${head} text → "${newText}"`) +
+        (c.sourceOnly
+          ? ` — GSAP SplitText source edit; target the original HTML host, never .char/.word/.line wrappers; preserve its classes, accessibility and timeline configuration; revert/re-split and rebuild animation in source. ${c.sourceHint || ''}`
+          : '') + breakpointTag([c]),
     });
   }
 
