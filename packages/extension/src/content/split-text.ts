@@ -157,7 +157,7 @@ function structuralPath(el: HTMLElement): string | null {
 function sameAuthorText(a: string, b: string): boolean {
   // SplitText sometimes removes literal spaces while retaining word masks.
   // Compare the actual characters rather than the generated whitespace.
-  const normalize = (value: string) => value.replace(/\\s+/g, '').normalize('NFC');
+  const normalize = (value: string) => value.replace(/\s+/g, '').normalize('NFC');
   return !!a && !!b && normalize(a) === normalize(b);
 }
 
@@ -169,7 +169,7 @@ export async function restoreWebflowSourceText(signal?: AbortSignal): Promise<nu
     cache: 'no-store',
     signal,
   });
-  if (!response.ok || !/text\\/html/i.test(response.headers.get('content-type') || '')) return 0;
+  if (!response.ok || !/text\/html/i.test(response.headers.get('content-type') || '')) return 0;
   const html = await response.text();
   if (signal?.aborted) return 0;
   const originalPage = new DOMParser().parseFromString(html, 'text/html');
