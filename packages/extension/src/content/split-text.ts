@@ -28,11 +28,17 @@ export function isSplitTextHost(el: Element): boolean {
 
 export function getSplitTextHost(target: HTMLElement): HTMLElement | null {
   let el: HTMLElement | null = target;
-  for (let depth = 0; el && depth < 10; depth++, el = el.parentElement) {
-    if (isSplitTextHost(el)) return el;
+  let candidate: HTMLElement | null = null;
+  for (let depth = 0; el && depth < 12; depth++, el = el.parentElement) {
     if (el.tagName === 'BODY') break;
+    if (!isSplitTextHost(el)) continue;
+    // Nested chars/words can themselves look like hosts. Prefer the actual
+    // heading/paragraph; for GSAP applied to a text-only div, use its
+    // outermost split container so the whole sentence is editable.
+    if (/^(H[1-6]|P|BLOCKQUOTE|FIGCAPTION)$/.test(el.tagName)) return el;
+    candidate = el;
   }
-  return null;
+  return candidate;
 }
 
 // Snapshot/recover text nodes without replacing GSAP-owned DOM elements.
