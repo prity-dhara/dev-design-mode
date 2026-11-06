@@ -41,3 +41,49 @@ export function splitTextValue(el: HTMLElement): string {
     return lines.map(line => (line.textContent || '').trim()).join(' ');
   return el.textContent || '';
 }
+
+// Temporary visual cleanup while Design Mode is open. Preserve the exact
+// original child nodes so closing Design Mode can restore GSAP's references.
+// A user-edited heading is intentionally left as plain text; reloading the
+// published page lets Webflow/GSAP split the updated source again.
+type SplitSnapshot = {
+  nodes: Node[];
+  originalText: string;
+  previewNode: Text;
+  ariaLabel: string | null;
+};
+const splitSnapshots = new Map<HTMLElement, SplitSnapshot>();
+
+export function flattenAnimatedText(root: ParentNode = document): number {
+  let count = 0;
+  const candidates = Array.from(root.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6,p,span,a,blockquote,label,div'));
+  for (const el of candidates) {
+    // Skip nested split wrappers; only the original editable host is flattened.
+    if (!el.isConnected || splitSnapshots.has(el) || !isSplitTextRoot(el)) continue;
+    if (splitTextRoot(el) && splitTextRoot(el) !== el) continue;
+    const text = splitTextValue(el);
+    if (!text.trim() || !el.children.length) continue;
+    const nodes = Array.from(el.childNodes);
+    const previewNode = document.createTextNode(text);
+    const ariaLabel = el.getAttribute('aria-label');
+    el.replaceChildren(previewNode);
+    // The accessible original label would otherwise remain stale after editing.
+    if (ariaLabel !== null) el.removeAttribute('aria-label');
+    splitSnapshots.set(el, { nodes, originalText: text, previewNode, ariaLabel });
+    count++;
+  }
+  return count;
+}
+
+export function restoreAnimatedText(): void {
+  for (const [el, snapshot] of splitSnapshots) {
+    if (!el.isConnected) continue;
+    // Only restore an untouched preview. Never undo a text edit made by user.
+    if (el.childNodes.length !== 1 ||
+        el.firstChild !== snapshot.previewNode ||
+        snapshot.previewNode.textContent !== snapshot.originalText) continue;
+    el.replaceChildren(...snapshot.nodes);
+    if (snapshot.ariaLabel !== null) el.setAttribute('aria-label', snapshot.ariaLabel);
+  }
+  splitSnapshots.clear();
+}
