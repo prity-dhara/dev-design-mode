@@ -20,6 +20,9 @@ function looksLikeUnmarkedSplit(el: Element, descendants: Element[]): boolean {
     !node.querySelector('span, div, p, h1, h2, h3, h4, h5, h6, a, button, input')
   );
   if (units.length < 3) return false;
+  // A container with normal paragraph content and a badge/tag row is not
+  // split text, even when several small spans resemble word fragments.
+  if (el.tagName === 'DIV' && el.querySelector('div:not([class*="split"]):not([class*="word"]):not([class*="char"])')) return false;
   const hostText = (el.textContent || '').trim();
   if (!hostText || hostText.length < 8) return false;
   const fragments = units.filter(node => (node.textContent || '').trim()).length;
@@ -33,7 +36,11 @@ function looksLikeUnmarkedSplit(el: Element, descendants: Element[]): boolean {
     /(?:split|stagger|reveal|animated|animate)/i.test(node.getAttribute('class') || '')
   ) || /(?:split|stagger|reveal)/i.test(el.getAttribute('class') || '');
   const words = hostText.split(/\s+/).filter(Boolean).length;
-  return animated || (units.length >= 5 && words >= 4 && units.length >= words - 1);
+  // A dense collection of plain spans can also be pills, statistics or
+  // labels. Require real animation evidence for div/span hosts; keep the
+  // density fallback for actual semantic text elements (P/headings).
+  return animated || (/^(H[1-6]|P|BLOCKQUOTE|FIGCAPTION)$/.test(el.tagName) &&
+    units.length >= 5 && words >= 4 && units.length >= words - 1);
 }
 
 export function isSplitTextHost(el: Element): boolean {
@@ -44,6 +51,10 @@ export function isSplitTextHost(el: Element): boolean {
   // Require multiple actual generated units: one incidental '.line' should
   // not make a complete normal heading behave as split text.
   if (wrappers.length < 2 && !looksLikeUnmarkedSplit(el, descendants)) return false;
+  // Never promote a compound UI block into an editable SplitText host.
+  // Only animation-wrapper divs may nest beneath a div-based text host.
+  if (el.tagName === 'DIV' && descendants.some(node =>
+    node.tagName === 'DIV' && !looksLikeSplitWrapper(node))) return false;
   // Do not turn a container with independent headings/paragraphs or
   // interactive controls into one editable sentence. GSAP also splits
   // text-only divs and spans, not just semantic headings.
